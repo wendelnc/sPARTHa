@@ -26,6 +26,8 @@
 // Athena headers
 #include "../../main.hpp"
 
+#include "weno_recon.hpp"
+
 using parthenon::ParArray4D;
 using parthenon::Real;
 
@@ -48,209 +50,163 @@ struct Reconstruct<Fluid::euler, Reconstruction::weno3> {
     Real igm1 = 1.0 / gm1;
     parthenon::par_for_inner(member, il, iu, [&](const int i) {
     
-      Real w1[(NHYDRO)], w2[(NHYDRO)], w3[(NHYDRO)], w4[(NHYDRO)];
-      Real q1[(NHYDRO)], q2[(NHYDRO)], q3[(NHYDRO)], q4[(NHYDRO)];
-      Real f1[(NHYDRO)], f2[(NHYDRO)], f3[(NHYDRO)], f4[(NHYDRO)];
+      Real q0[(NHYDRO)], q1[(NHYDRO)], q2[(NHYDRO)], q3[(NHYDRO)];
+      Real f0[(NHYDRO)], f1[(NHYDRO)], f2[(NHYDRO)], f3[(NHYDRO)];
       Real eigenvalues[(NHYDRO)], right_eigenmatrix[(NHYDRO)][(NHYDRO)], left_eigenmatrix[(NHYDRO)][(NHYDRO)];
-      Real vj1[NHYDRO], vj2[NHYDRO], vj3[NHYDRO], vj4[NHYDRO];
-      Real gj1[NHYDRO], gj2[NHYDRO], gj3[NHYDRO], gj4[NHYDRO];
-      Real g_p1[NHYDRO], g_p2[NHYDRO], g_p3[NHYDRO], g_p4[NHYDRO];
-      Real g_m1[NHYDRO], g_m2[NHYDRO], g_m3[NHYDRO], g_m4[NHYDRO];
-      Real weno1[NHYDRO], weno2[NHYDRO], weno_sum[NHYDRO];
+      Real vj0[NHYDRO], vj1[NHYDRO], vj2[NHYDRO], vj3[NHYDRO];
+      Real gj0[NHYDRO], gj1[NHYDRO], gj2[NHYDRO], gj3[NHYDRO];
+      Real g_p0[NHYDRO], g_p1[NHYDRO], g_p2[NHYDRO], g_p3[NHYDRO];
+      Real g_m0[NHYDRO], g_m1[NHYDRO], g_m2[NHYDRO], g_m3[NHYDRO];
+      Real weno_sum[NHYDRO];
       Real f_half[NHYDRO]; 
    
       //--- Step 0.  Load states into local variables:
         
       if (ivx == IV1){
+        q0[IDN] = cons(IDN, k, j, i - 2);
+        q0[IM1] = cons(ivx, k, j, i - 2);
+        q0[IM2] = cons(ivy, k, j, i - 2);
+        q0[IM3] = cons(ivz, k, j, i - 2);
+        q0[IEN] = cons(IEN, k, j, i - 2);
 
-        w1[IDN] = q(IDN, k, j, i - 2);
-        w1[IV1] = q(ivx, k, j, i - 2);
-        w1[IV2] = q(ivy, k, j, i - 2);
-        w1[IV3] = q(ivz, k, j, i - 2);
-        w1[IPR] = q(IPR, k, j, i - 2);
+        q1[IDN] = cons(IDN, k, j, i - 1);
+        q1[IM1] = cons(ivx, k, j, i - 1);
+        q1[IM2] = cons(ivy, k, j, i - 1);
+        q1[IM3] = cons(ivz, k, j, i - 1);
+        q1[IEN] = cons(IEN, k, j, i - 1);
 
-        q1[IDN] = cons(IDN, k, j, i - 2);
-        q1[IM1] = cons(ivx, k, j, i - 2);
-        q1[IM2] = cons(ivy, k, j, i - 2);
-        q1[IM3] = cons(ivz, k, j, i - 2);
-        q1[IEN] = cons(IEN, k, j, i - 2);
+        q2[IDN] = cons(IDN, k, j, i);
+        q2[IM1] = cons(ivx, k, j, i);
+        q2[IM2] = cons(ivy, k, j, i);
+        q2[IM3] = cons(ivz, k, j, i);
+        q2[IEN] = cons(IEN, k, j, i);
 
-        w2[IDN] = q(IDN, k, j, i - 1);
-        w2[IV1] = q(ivx, k, j, i - 1);
-        w2[IV2] = q(ivy, k, j, i - 1);
-        w2[IV3] = q(ivz, k, j, i - 1);
-        w2[IPR] = q(IPR, k, j, i - 1);
-
-        q2[IDN] = cons(IDN, k, j, i - 1);
-        q2[IM1] = cons(ivx, k, j, i - 1);
-        q2[IM2] = cons(ivy, k, j, i - 1);
-        q2[IM3] = cons(ivz, k, j, i - 1);
-        q2[IEN] = cons(IEN, k, j, i - 1);
-    
-        w3[IDN] = q(IDN, k, j, i);
-        w3[IV1] = q(ivx, k, j, i);
-        w3[IV2] = q(ivy, k, j, i);
-        w3[IV3] = q(ivz, k, j, i);
-        w3[IPR] = q(IPR, k, j, i);
-
-        q3[IDN] = cons(IDN, k, j, i);
-        q3[IM1] = cons(ivx, k, j, i);
-        q3[IM2] = cons(ivy, k, j, i);
-        q3[IM3] = cons(ivz, k, j, i);
-        q3[IEN] = cons(IEN, k, j, i);
-
-        w4[IDN] = q(IDN, k, j, i + 1);
-        w4[IV1] = q(ivx, k, j, i + 1);
-        w4[IV2] = q(ivy, k, j, i + 1);
-        w4[IV3] = q(ivz, k, j, i + 1);
-        w4[IPR] = q(IPR, k, j, i + 1);
-
-        q4[IDN] = cons(IDN, k, j, i + 1);
-        q4[IM1] = cons(ivx, k, j, i + 1);
-        q4[IM2] = cons(ivy, k, j, i + 1);
-        q4[IM3] = cons(ivz, k, j, i + 1);
-        q4[IEN] = cons(IEN, k, j, i + 1);
-
-            
+        q3[IDN] = cons(IDN, k, j, i + 1);
+        q3[IM1] = cons(ivx, k, j, i + 1);
+        q3[IM2] = cons(ivy, k, j, i + 1);
+        q3[IM3] = cons(ivz, k, j, i + 1);
+        q3[IEN] = cons(IEN, k, j, i + 1); 
       }
         
       if (ivx == IV2){
+        q0[IDN] = cons(IDN, k, j - 2, i);
+        q0[IM1] = cons(ivx, k, j - 2, i);
+        q0[IM2] = cons(ivy, k, j - 2, i);
+        q0[IM3] = cons(ivz, k, j - 2, i);
+        q0[IEN] = cons(IEN, k, j - 2, i);
 
-        w1[IDN] = q(IDN, k, j - 2, i);
-        w1[IV1] = q(ivx, k, j - 2, i);
-        w1[IV2] = q(ivy, k, j - 2, i);
-        w1[IV3] = q(ivz, k, j - 2, i);
-        w1[IPR] = q(IPR, k, j - 2, i);
+        q1[IDN] = cons(IDN, k, j - 1, i);
+        q1[IM1] = cons(ivx, k, j - 1, i);
+        q1[IM2] = cons(ivy, k, j - 1, i);
+        q1[IM3] = cons(ivz, k, j - 1, i);
+        q1[IEN] = cons(IEN, k, j - 1, i );
 
-        q1[IDN] = cons(IDN, k, j - 2, i);
-        q1[IM1] = cons(ivx, k, j - 2, i);
-        q1[IM2] = cons(ivy, k, j - 2, i);
-        q1[IM3] = cons(ivz, k, j - 2, i);
-        q1[IEN] = cons(IEN, k, j - 2, i);
+        q2[IDN] = cons(IDN, k, j, i);
+        q2[IM1] = cons(ivx, k, j, i);
+        q2[IM2] = cons(ivy, k, j, i);
+        q2[IM3] = cons(ivz, k, j, i);
+        q2[IEN] = cons(IEN, k, j, i);
 
-        w2[IDN] = q(IDN, k, j - 1, i);
-        w2[IV1] = q(ivx, k, j - 1, i);
-        w2[IV2] = q(ivy, k, j - 1, i);
-        w2[IV3] = q(ivz, k, j - 1, i);
-        w2[IPR] = q(IPR, k, j - 1, i);
-
-        q2[IDN] = cons(IDN, k, j - 1, i);
-        q2[IM1] = cons(ivx, k, j - 1, i);
-        q2[IM2] = cons(ivy, k, j - 1, i);
-        q2[IM3] = cons(ivz, k, j - 1, i);
-        q2[IEN] = cons(IEN, k, j - 1, i );
-    
-        w3[IDN] = q(IDN, k, j, i);
-        w3[IV1] = q(ivx, k, j, i);
-        w3[IV2] = q(ivy, k, j, i);
-        w3[IV3] = q(ivz, k, j, i);
-        w3[IPR] = q(IPR, k, j, i);
-
-        q3[IDN] = cons(IDN, k, j, i);
-        q3[IM1] = cons(ivx, k, j, i);
-        q3[IM2] = cons(ivy, k, j, i);
-        q3[IM3] = cons(ivz, k, j, i);
-        q3[IEN] = cons(IEN, k, j, i);
-
-        w4[IDN] = q(IDN, k, j + 1, i);
-        w4[IV1] = q(ivx, k, j + 1, i);
-        w4[IV2] = q(ivy, k, j + 1, i);
-        w4[IV3] = q(ivz, k, j + 1, i);
-        w4[IPR] = q(IPR, k, j + 1, i);
-
-        q4[IDN] = cons(IDN, k, j + 1, i);
-        q4[IM1] = cons(ivx, k, j + 1, i);
-        q4[IM2] = cons(ivy, k, j + 1, i);
-        q4[IM3] = cons(ivz, k, j + 1, i);
-        q4[IEN] = cons(IEN, k, j + 1, i);
-
+        q3[IDN] = cons(IDN, k, j + 1, i);
+        q3[IM1] = cons(ivx, k, j + 1, i);
+        q3[IM2] = cons(ivy, k, j + 1, i);
+        q3[IM3] = cons(ivz, k, j + 1, i);
+        q3[IEN] = cons(IEN, k, j + 1, i);
       }
 
       if (ivx == IV3){
+        q0[IDN] = cons(IDN, k - 2, j, i);
+        q0[IM1] = cons(ivx, k - 2, j, i);
+        q0[IM2] = cons(ivy, k - 2, j, i);
+        q0[IM3] = cons(ivz, k - 2, j, i);
+        q0[IEN] = cons(IEN, k - 2, j, i);
 
-        w1[IDN] = q(IDN, k - 2, j, i);
-        w1[IV1] = q(ivx, k - 2, j, i);
-        w1[IV2] = q(ivy, k - 2, j, i);
-        w1[IV3] = q(ivz, k - 2, j, i);
-        w1[IPR] = q(IPR, k - 2, j, i);
-
-        q1[IDN] = cons(IDN, k - 2, j, i);
-        q1[IM1] = cons(ivx, k - 2, j, i);
-        q1[IM2] = cons(ivy, k - 2, j, i);
-        q1[IM3] = cons(ivz, k - 2, j, i);
-        q1[IEN] = cons(IEN, k - 2, j, i);
-
-        w2[IDN] = q(IDN, k - 1, j, i);
-        w2[IV1] = q(ivx, k - 1, j, i);
-        w2[IV2] = q(ivy, k - 1, j, i);
-        w2[IV3] = q(ivz, k - 1, j, i);
-        w2[IPR] = q(IPR, k - 1, j, i);
-
-        q2[IDN] = cons(IDN, k - 1, j, i);
-        q2[IM1] = cons(ivx, k - 1, j, i);
-        q2[IM2] = cons(ivy, k - 1, j, i);
-        q2[IM3] = cons(ivz, k - 1, j, i);
-        q2[IEN] = cons(IEN, k - 1, j, i );
+        q1[IDN] = cons(IDN, k - 1, j, i);
+        q1[IM1] = cons(ivx, k - 1, j, i);
+        q1[IM2] = cons(ivy, k - 1, j, i);
+        q1[IM3] = cons(ivz, k - 1, j, i);
+        q1[IEN] = cons(IEN, k - 1, j, i );
     
-        w3[IDN] = q(IDN, k, j, i);
-        w3[IV1] = q(ivx, k, j, i);
-        w3[IV2] = q(ivy, k, j, i);
-        w3[IV3] = q(ivz, k, j, i);
-        w3[IPR] = q(IPR, k, j, i);
+        q2[IDN] = cons(IDN, k, j, i);
+        q2[IM1] = cons(ivx, k, j, i);
+        q2[IM2] = cons(ivy, k, j, i);
+        q2[IM3] = cons(ivz, k, j, i);
+        q2[IEN] = cons(IEN, k, j, i);
 
-        q3[IDN] = cons(IDN, k, j, i);
-        q3[IM1] = cons(ivx, k, j, i);
-        q3[IM2] = cons(ivy, k, j, i);
-        q3[IM3] = cons(ivz, k, j, i);
-        q3[IEN] = cons(IEN, k, j, i);
-
-        w4[IDN] = q(IDN, k + 1, j, i);
-        w4[IV1] = q(ivx, k + 1, j, i);
-        w4[IV2] = q(ivy, k + 1, j, i);
-        w4[IV3] = q(ivz, k + 1, j, i);
-        w4[IPR] = q(IPR, k + 1, j, i);
-
-        q4[IDN] = cons(IDN, k + 1, j, i);
-        q4[IM1] = cons(ivx, k + 1, j, i);
-        q4[IM2] = cons(ivy, k + 1, j, i);
-        q4[IM3] = cons(ivz, k + 1, j, i);
-        q4[IEN] = cons(IEN, k + 1, j, i);
-
+        q3[IDN] = cons(IDN, k + 1, j, i);
+        q3[IM1] = cons(ivx, k + 1, j, i);
+        q3[IM2] = cons(ivy, k + 1, j, i);
+        q3[IM3] = cons(ivz, k + 1, j, i);
+        q3[IEN] = cons(IEN, k + 1, j, i);
       }
         
       //--- Step 1.  Compute the physical flux at each grid point:
 
+      //--- f0 ---
+      Real irho0 = 1.0 / q0[IDN];
+      Real vex0 = q0[IM1] * irho0;
+      Real vey0 = q0[IM2] * irho0;
+      Real vez0 = q0[IM3] * irho0;
+      Real vnm0 = vex0 * vex0 + vey0 * vey0 + vez0 * vez0;
+      Real pre0 = (gm1) * (q0[IEN] - 0.5*q0[IDN]*vnm0);
+
+      f0[IDN] = q0[IM1];
+      f0[IM1] = q0[IM1] * vex0 + pre0;
+      f0[IM2] = q0[IM1] * vey0;
+      f0[IM3] = q0[IM1] * vez0;
+      f0[IEN] = vex0 * (q0[IEN] + pre0);
+
+      //--- f1 ---
+      Real irho1 = 1.0 / q1[IDN];
+      Real vex1 = q1[IM1] * irho1;
+      Real vey1 = q1[IM2] * irho1;
+      Real vez1 = q1[IM3] * irho1;
+      Real vnm1 = vex1 * vex1 + vey1 * vey1 + vez1 * vez1;
+      Real pre1 = (gm1) * (q1[IEN] - 0.5*q1[IDN]*vnm1);
+
       f1[IDN] = q1[IM1];
-      f1[IM1] = q1[IM1] * w1[IV1] + w1[IPR];
-      f1[IM2] = q1[IM1] * w1[IV2];
-      f1[IM3] = q1[IM1] * w1[IV3];
-      f1[IEN] = w1[IV1] * (q1[IEN] + w1[IPR]);
+      f1[IM1] = q1[IM1] * vex1 + pre1;
+      f1[IM2] = q1[IM1] * vey1;
+      f1[IM3] = q1[IM1] * vez1;
+      f1[IEN] = vex1 * (q1[IEN] + pre1);
+
+      //--- f2 ---
+      Real irho2 = 1.0 / q2[IDN];
+      Real vex2 = q2[IM1] * irho2;
+      Real vey2 = q2[IM2] * irho2;
+      Real vez2 = q2[IM3] * irho2;
+      Real vnm2 = vex2 * vex2 + vey2 * vey2 + vez2 * vez2;
+      Real pre2 = (gm1) * (q2[IEN] - 0.5*q2[IDN]*vnm2);
 
       f2[IDN] = q2[IM1];
-      f2[IM1] = q2[IM1] * w2[IV1] + w2[IPR];
-      f2[IM2] = q2[IM1] * w2[IV2];
-      f2[IM3] = q2[IM1] * w2[IV3];
-      f2[IEN] = w2[IV1] * (q2[IEN] + w2[IPR]);
+      f2[IM1] = q2[IM1] * vex2 + pre2;
+      f2[IM2] = q2[IM1] * vey2;
+      f2[IM3] = q2[IM1] * vez2;
+      f2[IEN] = vex2 * (q2[IEN] + pre2);
+
+      //--- f3 ---
+      Real irho3 = 1.0 / q3[IDN];
+      Real vex3 = q3[IM1] * irho3;
+      Real vey3 = q3[IM2] * irho3;
+      Real vez3 = q3[IM3] * irho3;
+      Real vnm3 = vex3 * vex3 + vey3 * vey3 + vez3 * vez3;
+      Real pre3 = (gm1) * (q3[IEN] - 0.5*q3[IDN]*vnm3);
 
       f3[IDN] = q3[IM1];
-      f3[IM1] = q3[IM1] * w3[IV1] + w3[IPR];
-      f3[IM2] = q3[IM1] * w3[IV2];
-      f3[IM3] = q3[IM1] * w3[IV3];
-      f3[IEN] = w3[IV1] * (q3[IEN] + w3[IPR]);
+      f3[IM1] = q3[IM1] * vex3 + pre3;
+      f3[IM2] = q3[IM1] * vey3;
+      f3[IM3] = q3[IM1] * vez3;
+      f3[IEN] = vex3 * (q3[IEN] + pre3);
 
-      f4[IDN] = q4[IM1];
-      f4[IM1] = q4[IM1] * w4[IV1] + w4[IPR];
-      f4[IM2] = q4[IM1] * w4[IV2];
-      f4[IM3] = q4[IM1] * w4[IV3];
-      f4[IEN] = w4[IV1] * (q4[IEN] + w4[IPR]);
+      //--- Step 2.  At each x_{i-1/2,j,k}:  (using cells i-1 and i)
+      //--- (a) Compute the average state w_{i-1/2,j,k} in the primitive variables:
+      
+      Real half_den = 0.5 * (q1[IDN] + q2[IDN]);
+      Real half_vex = 0.5 * (vex1 + vex2);
+      Real half_vey = 0.5 * (vey1 + vey2);
+      Real half_vez = 0.5 * (vez1 + vez2);
+      Real half_pre = 0.5 * (pre1 + pre2);
 
-      //--- Step 2.  At each x_{i+1/2,j,k}:
-      //--- (a) Compute the average state w_{i+1/2,j,k} in the primitive variables:
-      Real half_den = 0.5 * (w2[IDN] + w3[IDN]);
-      Real half_vex = 0.5 * (w2[IV1] + w3[IV1]);
-      Real half_vey = 0.5 * (w2[IV2] + w3[IV2]);
-      Real half_vez = 0.5 * (w2[IV3] + w3[IV3]);
-      Real half_pre = 0.5 * (w2[IPR] + w3[IPR]);
       Real half_vsq = half_vex * half_vex + half_vey * half_vey + half_vez * half_vez;
       Real half_E = half_pre / (gm1) + (0.5 * half_den * half_vsq);
       Real half_H = (half_E + half_pre) / half_den;
@@ -326,27 +282,27 @@ struct Reconstruct<Fluid::euler, Reconstruction::weno3> {
 
       for (int ii = 0; ii < NHYDRO; ++ii) {
 
+        vj0[ii] = 0.0;
         vj1[ii] = 0.0;
         vj2[ii] = 0.0;
         vj3[ii] = 0.0;
-        vj4[ii] = 0.0;
         
+        gj0[ii] = 0.0;
         gj1[ii] = 0.0;
         gj2[ii] = 0.0;
         gj3[ii] = 0.0;
-        gj4[ii] = 0.0;
            
         for (int jj = 0; jj < NHYDRO; ++jj) {
 
+          vj0[ii] += left_eigenmatrix[ii][jj] * q0[jj];
           vj1[ii] += left_eigenmatrix[ii][jj] * q1[jj];
           vj2[ii] += left_eigenmatrix[ii][jj] * q2[jj];
           vj3[ii] += left_eigenmatrix[ii][jj] * q3[jj];
-          vj4[ii] += left_eigenmatrix[ii][jj] * q4[jj];
 
+          gj0[ii] += left_eigenmatrix[ii][jj] * f0[jj];
           gj1[ii] += left_eigenmatrix[ii][jj] * f1[jj];
           gj2[ii] += left_eigenmatrix[ii][jj] * f2[jj];
           gj3[ii] += left_eigenmatrix[ii][jj] * f3[jj];
-          gj4[ii] += left_eigenmatrix[ii][jj] * f4[jj];
 
         }
       }
@@ -356,113 +312,52 @@ struct Reconstruct<Fluid::euler, Reconstruction::weno3> {
       // g^{±}_{j}= 0.5 * (g_j ± α^{m} v_j) where α(m) = max_k | λ^{m} q_k | 
       // is the maximal wave speed of the m^{th} component of characteristic variables over all grid points
 
-      Real a1 = std::sqrt((gamma * w1[IPR]) / w1[IDN]);
-      Real a2 = std::sqrt((gamma * w2[IPR]) / w2[IDN]);
-      Real a3 = std::sqrt((gamma * w3[IPR]) / w3[IDN]);
-      Real a4 = std::sqrt((gamma * w4[IPR]) / w4[IDN]);
+      Real a0 = std::sqrt((gamma * pre0) / q0[IDN]);
+      Real a1 = std::sqrt((gamma * pre1) / q1[IDN]);
+      Real a2 = std::sqrt((gamma * pre2) / q2[IDN]);
+      Real a3 = std::sqrt((gamma * pre3) / q3[IDN]);
 
-      Real max_eig_0 = std::max({std::abs(w1[IV1]-a1), std::abs(w2[IV1]-a2), std::abs(w3[IV1]-a3), std::abs(w4[IV1]-a4)});
-      Real max_eig_1 = std::max({std::abs(w1[IV1]),    std::abs(w2[IV1]),    std::abs(w3[IV1]),    std::abs(w4[IV1])});
-      Real max_eig_2 = std::max({std::abs(w1[IV1]+a1), std::abs(w2[IV1]+a2), std::abs(w3[IV1]+a3), std::abs(w4[IV1]+a4)});
+      Real max_eig_0 = std::max({std::abs(vex0-a0), std::abs(vex1-a1), std::abs(vex2-a2), std::abs(vex3-a3)});
+      Real max_eig_1 = std::max({std::abs(vex0),    std::abs(vex1),    std::abs(vex2),    std::abs(vex3)});
+      Real max_eig_2 = std::max({std::abs(vex0+a0), std::abs(vex1+a1), std::abs(vex2+a2), std::abs(vex3+a3)});
 
       Real alpha[NHYDRO] = {max_eig_0, max_eig_1, max_eig_1, max_eig_1, max_eig_2};
 
-
       for (int iii = 0; iii < NHYDRO; ++iii) {
 
+        g_p0[iii] = 0.5 * (gj0[iii] + 1.1 * alpha[iii] * vj0[iii]);  
         g_p1[iii] = 0.5 * (gj1[iii] + 1.1 * alpha[iii] * vj1[iii]);  
         g_p2[iii] = 0.5 * (gj2[iii] + 1.1 * alpha[iii] * vj2[iii]);  
-        g_p3[iii] = 0.5 * (gj3[iii] + 1.1 * alpha[iii] * vj3[iii]);  
-        // g_p4[iii] = 0.5 * (gj4[iii] + 1.1 * alpha[iii] * vj4[iii]);  // not needed for WENO
+        // g_p3[iii] = 0.5 * (gj3[iii] + 1.1 * alpha[iii] * vj3[iii]);  // not needed for WENO
 
-        // g_m1[iii] = 0.5 * (gj1[iii] - 1.1 * alpha[iii] * vj1[iii]);  // not needed for WENO   
+        // g_m0[iii] = 0.5 * (gj0[iii] - 1.1 * alpha[iii] * vj0[iii]);  // not needed for WENO   
+        g_m1[iii] = 0.5 * (gj1[iii] - 1.1 * alpha[iii] * vj1[iii]);  
         g_m2[iii] = 0.5 * (gj2[iii] - 1.1 * alpha[iii] * vj2[iii]);  
         g_m3[iii] = 0.5 * (gj3[iii] - 1.1 * alpha[iii] * vj3[iii]);  
-        g_m4[iii] = 0.5 * (gj4[iii] - 1.1 * alpha[iii] * vj4[iii]);  
 
       }
 
       //--- (e) Perform a WENO reconstruction on each of the computed flux components gj± to obtain 
       // the corresponding component of the numerical flux
 
-      Real epsilon = 1E-6;
+      for (int jjj = 0; jjj < NHYDRO; ++jjj) {   
 
-      // TODO(wendelnc) Make WENO3 a function in weno_helpers.hpp
-
-      // gp0,gp1,gp2,gp3,gp4 are vmm,vm,v,vp,vpp
-      for (int jjj = 0; jjj < NHYDRO; ++jjj) {     
-
-        Real q_im1 = g_p1[jjj];
-        Real q_i   = g_p2[jjj];
-        Real q_ip1 = g_p3[jjj];
-
-        Real beta[2]; // (2.62) 
-        beta[0] = SQR(q_ip1 - q_i);
-        beta[1] = SQR(q_i - q_im1);
-
-        Real indicator[2]; // fraction part of (2.59) 
-        indicator[0] = 1 / SQR(epsilon + beta[0]);
-        indicator[1] = 1 / SQR(epsilon + beta[1]);
-
-        // // compute qL_ip1
-        Real f[2]; // polynomial based on constants c_{r,j} in Table 2.1 
-        // Factor of 1/2 in coefficients of f[] array applied to alpha_sum to reduce divisions
-        f[0] = q_i + q_ip1;
-        f[1] = -q_im1 + 3.0 * q_i;
-
-        Real alpha[2]; // (2.59)
-        alpha[0] = indicator[0] * 2.0 / 3.0;
-        alpha[1] = indicator[1] * 1.0 / 3.0;
-        Real alpha_sum = 2.0 * (alpha[0] + alpha[1]);
-
-        weno1[jjj] = (alpha[0] * f[0] + alpha[1] * f[1]) / alpha_sum; // (2.52) 
-
+        weno_sum[jjj] = WENO3(g_p0[jjj], g_p1[jjj], g_p2[jjj]) 
+                      + WENO3(g_m3[jjj], g_m2[jjj], g_m1[jjj]);  
+      
       }
-
-      // gm5,gm4,gm3,gm2,gm1 are vmm,vm,v,vp,vpp
-      for (int jjjj = 0; jjjj < NHYDRO; ++jjjj) {
-
-        Real q_im1 = g_m4[jjjj];
-        Real q_i   = g_m3[jjjj];
-        Real q_ip1 = g_m2[jjjj];
-
-        Real beta[2]; // (2.62) 
-        beta[0] = SQR(q_ip1 - q_i);
-        beta[1] = SQR(q_i - q_im1);
-
-        Real indicator[2]; // fraction part of (2.59) 
-        indicator[0] = 1 / SQR(epsilon + beta[0]);
-        indicator[1] = 1 / SQR(epsilon + beta[1]);
-
-        // // compute qL_ip1
-        Real f[2]; // polynomial based on constants c_{r,j} in Table 2.1 
-        // Factor of 1/2 in coefficients of f[] array applied to alpha_sum to reduce divisions
-        f[0] = q_i + q_ip1;
-        f[1] = -q_im1 + 3.0 * q_i;
-
-        Real alpha[2]; // (2.59)
-        alpha[0] = indicator[0] * 2.0 / 3.0;
-        alpha[1] = indicator[1] * 1.0 / 3.0;
-        Real alpha_sum = 2.0 * (alpha[0] + alpha[1]);
-
-        weno2[jjjj] = (alpha[0] * f[0] + alpha[1] * f[1]) / alpha_sum; // (2.52) 
-        
-        weno_sum[jjjj] = weno1[jjjj] + weno2[jjjj];
-
-      }
-
 
       //--- (f) Project the numerical flux back to the conserved variables
         
       for (int iiii = 0; iiii < NHYDRO; ++iiii) {
         f_half[iiii] = 0.0;
-        for (int jjjjj = 0; jjjjj < NHYDRO; ++jjjjj) {
-          f_half[iiii] += right_eigenmatrix[iiii][jjjjj] * weno_sum[jjjjj];
+        for (int jjjj = 0; jjjj < NHYDRO; ++jjjj) {
+          f_half[iiii] += right_eigenmatrix[iiii][jjjj] * weno_sum[jjjj];
         }
       }
 
 
-      //--- Step 3.  Update flux at each x_{i+1/2,j,k}:
+      //--- Step 3.  Update flux at each x_{i-1/2,j,k}:
 
       cons.flux(ivx, IDN, k, j, i) = f_half[IDN];
       cons.flux(ivx, ivx, k, j, i) = f_half[IV1];
