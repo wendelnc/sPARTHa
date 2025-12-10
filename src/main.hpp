@@ -34,7 +34,7 @@ enum {
 enum { IV1 = 1, IV2 = 2, IV3 = 3, IPR = 4 };
 
 enum class Hst { idx, ekin, emag, divb };
-enum class Reconstruction { undefined, none, weno3, weno5 };
+enum class Reconstruction { undefined, none, weno3, weno5, weno7, weno9 };
 enum class Integrator { undefined, rk1, rk2, vl2, rk3 };
 enum class Fluid { undefined, euler, mhd };
 
