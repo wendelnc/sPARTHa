@@ -20,8 +20,10 @@
 #include "../eos/adiabatic_mhd.hpp"
 #include "hydro.hpp"
 #include "hydro_driver.hpp"
-#include "recon/mp_weno5_2d.hpp"
-#include "recon/mp_weno5_3d.hpp"
+// #include "recon/mp_weno3.hpp"
+#include "recon/mp_weno5.hpp"
+// #include "recon/mp_weno7.hpp"
+// #include "recon/mp_weno9.hpp"
 
 using namespace parthenon::driver::prelude;
 
@@ -50,7 +52,6 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
   auto num_task_lists_executed_independently = blocks.size();
 
   TaskRegion &async_region_1 = tc.AddRegion(num_task_lists_executed_independently);
-  // std::cout << "async_region_1" << std::endl;
   for (int i = 0; i < blocks.size(); i++) {
     auto &pmb = blocks[i];
     auto &tl = async_region_1[i];
@@ -77,7 +78,6 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
   // note that task within this region that contains one tasklist per pack
   // could still be executed in parallel
   TaskRegion &single_tasklist_per_pack_region = tc.AddRegion(num_partitions);
-  // std::cout << "single_tasklist_per_pack_region" << std::endl;
   for (int i = 0; i < num_partitions; i++) {
     auto &tl = single_tasklist_per_pack_region[i];
     auto &mu0 = pmesh->mesh_data.GetOrAdd("base", i);
@@ -147,7 +147,6 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
   } // single_tasklist_per_pack_region
   
   TaskRegion &single_tasklist_per_pack_region_3 = tc.AddRegion(num_partitions);
-  // std::cout << "single_tasklist_per_pack_region_3" << std::endl;
   for (int i = 0; i < num_partitions; i++) {
     auto &tl = single_tasklist_per_pack_region_3[i];
     auto &mu0 = pmesh->mesh_data.GetOrAdd("base", i);
@@ -157,7 +156,6 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
   
   if (stage == integrator->nstages) {
     TaskRegion &tr = tc.AddRegion(num_partitions);
-    // std::cout << "tr" << std::endl;
     for (int i = 0; i < num_partitions; i++) {
       auto &tl = tr[i];
       auto &mu0 = pmesh->mesh_data.GetOrAdd("base", i);
@@ -170,7 +168,6 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
 
   if (stage == integrator->nstages && pmesh->adaptive) {
     TaskRegion &async_region_4 = tc.AddRegion(num_task_lists_executed_independently);
-    // std::cout << "async_region_4" << std::endl;
     for (int i = 0; i < blocks.size(); i++) {
       auto &tl = async_region_4[i];
       auto &u0 = blocks[i]->meshblock_data.Get("base");
