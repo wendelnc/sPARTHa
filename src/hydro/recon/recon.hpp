@@ -26,8 +26,12 @@ struct Reconstruct;
 // now include the specializations
 #include "hydro_weno3.hpp"
 #include "hydro_weno5.hpp"
-// #include "mhd_weno3.hpp"
+#include "hydro_weno7.hpp"
+#include "hydro_weno9.hpp"
+#include "mhd_weno3.hpp"
 #include "mhd_weno5.hpp"
+#include "mhd_weno7.hpp"
+#include "mhd_weno9.hpp"
 
 // "none" solvers for runs/testing without fluid evolution, i.e., just reset fluxes
 template <>
