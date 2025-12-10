@@ -22,10 +22,12 @@
 #include <algorithm> // max(), min()
 #include <cmath>     // sqrt()
 #include <iomanip>   // For std::setprecision
+#include <fstream>
 
 // Athena headers
 #include "../../main.hpp"
-// #include "weno_helpers.hpp"
+
+#include "weno_recon.hpp"
 
 using parthenon::ParArray4D;
 using parthenon::Real;
@@ -55,7 +57,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
     
     parthenon::par_for_inner(member, il, iu, [&](const int i) {
    
-      Real w0[(NMHD)], w1[(NMHD)], w2[(NMHD)], w3[(NMHD)], w4[(NMHD)], w5[(NMHD)];
       Real q0[(NMHD)], q1[(NMHD)], q2[(NMHD)], q3[(NMHD)], q4[(NMHD)], q5[(NMHD)];
       Real f0[(NMHD)], f1[(NMHD)], f2[(NMHD)], f3[(NMHD)], f4[(NMHD)], f5[(NMHD)];
       Real rr[(NMHD)][(NMHD)], ru[(NMHD)][(NMHD)], lu[(NMHD)][(NMHD)], lq[(NMHD)][(NMHD)];
@@ -63,21 +64,12 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
       Real gj0[NMHD], gj1[NMHD], gj2[NMHD], gj3[NMHD], gj4[NMHD], gj5[NMHD];
       Real g_p0[NMHD], g_p1[NMHD], g_p2[NMHD], g_p3[NMHD], g_p4[NMHD], g_p5[NMHD];
       Real g_m0[NMHD], g_m1[NMHD], g_m2[NMHD], g_m3[NMHD], g_m4[NMHD], g_m5[NMHD];
-      Real weno1[NMHD], weno2[NMHD], weno_sum[NMHD];
+      Real weno_sum[NMHD];
       Real f_half[NMHD];
 
       //--- Step 0.  Load states into local variables:
         
       if (ivx == IV1){
-        w0[IDN] = q(IDN, k, j, i - 3); 
-        w0[IV1] = q(ivx, k, j, i - 3);
-        w0[IV2] = q(ivy, k, j, i - 3);
-        w0[IV3] = q(ivz, k, j, i - 3);
-        w0[IPR] = q(IPR, k, j, i - 3);
-        w0[IB1] = q(iBx, k, j, i - 3);
-        w0[IB2] = q(iBy, k, j, i - 3);
-        w0[IB3] = q(iBz, k, j, i - 3);
-
         q0[IDN] = cons(IDN, k, j, i - 3);
         q0[IM1] = cons(ivx, k, j, i - 3);
         q0[IM2] = cons(ivy, k, j, i - 3);
@@ -86,15 +78,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q0[IB1] = cons(iBx, k, j, i - 3);
         q0[IB2] = cons(iBy, k, j, i - 3);
         q0[IB3] = cons(iBz, k, j, i - 3);
-
-        w1[IDN] = q(IDN, k, j, i - 2);
-        w1[IV1] = q(ivx, k, j, i - 2);
-        w1[IV2] = q(ivy, k, j, i - 2);
-        w1[IV3] = q(ivz, k, j, i - 2);
-        w1[IPR] = q(IPR, k, j, i - 2);
-        w1[IB1] = q(iBx, k, j, i - 2);
-        w1[IB2] = q(iBy, k, j, i - 2);
-        w1[IB3] = q(iBz, k, j, i - 2);
 
         q1[IDN] = cons(IDN, k, j, i - 2);
         q1[IM1] = cons(ivx, k, j, i - 2);
@@ -105,15 +88,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q1[IB2] = cons(iBy, k, j, i - 2);
         q1[IB3] = cons(iBz, k, j, i - 2);
 
-        w2[IDN] = q(IDN, k, j, i - 1);
-        w2[IV1] = q(ivx, k, j, i - 1);
-        w2[IV2] = q(ivy, k, j, i - 1);
-        w2[IV3] = q(ivz, k, j, i - 1);
-        w2[IPR] = q(IPR, k, j, i - 1);
-        w2[IB1] = q(iBx, k, j, i - 1);
-        w2[IB2] = q(iBy, k, j, i - 1);
-        w2[IB3] = q(iBz, k, j, i - 1);
-
         q2[IDN] = cons(IDN, k, j, i - 1);
         q2[IM1] = cons(ivx, k, j, i - 1);
         q2[IM2] = cons(ivy, k, j, i - 1);
@@ -122,15 +96,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q2[IB1] = cons(iBx, k, j, i - 1);
         q2[IB2] = cons(iBy, k, j, i - 1);
         q2[IB3] = cons(iBz, k, j, i - 1);
-
-        w3[IDN] = q(IDN, k, j, i);
-        w3[IV1] = q(ivx, k, j, i);
-        w3[IV2] = q(ivy, k, j, i);
-        w3[IV3] = q(ivz, k, j, i);
-        w3[IPR] = q(IPR, k, j, i);
-        w3[IB1] = q(iBx, k, j, i);
-        w3[IB2] = q(iBy, k, j, i);
-        w3[IB3] = q(iBz, k, j, i);
 
         q3[IDN] = cons(IDN, k, j, i);
         q3[IM1] = cons(ivx, k, j, i);
@@ -141,15 +106,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q3[IB2] = cons(iBy, k, j, i);
         q3[IB3] = cons(iBz, k, j, i);
 
-        w4[IDN] = q(IDN, k, j, i + 1);
-        w4[IV1] = q(ivx, k, j, i + 1);
-        w4[IV2] = q(ivy, k, j, i + 1);
-        w4[IV3] = q(ivz, k, j, i + 1);
-        w4[IPR] = q(IPR, k, j, i + 1);
-        w4[IB1] = q(iBx, k, j, i + 1);
-        w4[IB2] = q(iBy, k, j, i + 1);
-        w4[IB3] = q(iBz, k, j, i + 1);
-
         q4[IDN] = cons(IDN, k, j, i + 1);
         q4[IM1] = cons(ivx, k, j, i + 1);
         q4[IM2] = cons(ivy, k, j, i + 1);
@@ -157,16 +113,7 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q4[IEN] = cons(IEN, k, j, i + 1);
         q4[IB1] = cons(iBx, k, j, i + 1);
         q4[IB2] = cons(iBy, k, j, i + 1);
-        q4[IB3] = cons(iBz, k, j, i + 1);
-
-        w5[IDN] = q(IDN, k, j, i + 2);
-        w5[IV1] = q(ivx, k, j, i + 2);
-        w5[IV2] = q(ivy, k, j, i + 2);
-        w5[IV3] = q(ivz, k, j, i + 2);
-        w5[IPR] = q(IPR, k, j, i + 2);
-        w5[IB1] = q(iBx, k, j, i + 2);
-        w5[IB2] = q(iBy, k, j, i + 2);
-        w5[IB3] = q(iBz, k, j, i + 2);        
+        q4[IB3] = cons(iBz, k, j, i + 1);       
         
         q5[IDN] = cons(IDN, k, j, i + 2);
         q5[IM1] = cons(ivx, k, j, i + 2);
@@ -179,15 +126,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
       }
         
       if (ivx == IV2){
-        w0[IDN] = q(IDN, k, j - 3, i);
-        w0[IV1] = q(ivx, k, j - 3, i);
-        w0[IV2] = q(ivy, k, j - 3, i);
-        w0[IV3] = q(ivz, k, j - 3, i);
-        w0[IPR] = q(IPR, k, j - 3, i);
-        w0[IB1] = q(iBx, k, j - 3, i);
-        w0[IB2] = q(iBy, k, j - 3, i);
-        w0[IB3] = q(iBz, k, j - 3, i);
-
         q0[IDN] = cons(IDN, k, j - 3, i);
         q0[IM1] = cons(ivx, k, j - 3, i);
         q0[IM2] = cons(ivy, k, j - 3, i);
@@ -196,15 +134,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q0[IB1] = cons(iBx, k, j - 3, i);
         q0[IB2] = cons(iBy, k, j - 3, i);
         q0[IB3] = cons(iBz, k, j - 3, i); 
-
-        w1[IDN] = q(IDN, k, j - 2, i);
-        w1[IV1] = q(ivx, k, j - 2, i);
-        w1[IV2] = q(ivy, k, j - 2, i);
-        w1[IV3] = q(ivz, k, j - 2, i);
-        w1[IPR] = q(IPR, k, j - 2, i);
-        w1[IB1] = q(iBx, k, j - 2, i);
-        w1[IB2] = q(iBy, k, j - 2, i);
-        w1[IB3] = q(iBz, k, j - 2, i);
 
         q1[IDN] = cons(IDN, k, j - 2, i);
         q1[IM1] = cons(ivx, k, j - 2, i);
@@ -215,15 +144,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q1[IB2] = cons(iBy, k, j - 2, i);
         q1[IB3] = cons(iBz, k, j - 2, i);
 
-        w2[IDN] = q(IDN, k, j - 1, i);
-        w2[IV1] = q(ivx, k, j - 1, i);
-        w2[IV2] = q(ivy, k, j - 1, i);
-        w2[IV3] = q(ivz, k, j - 1, i);
-        w2[IPR] = q(IPR, k, j - 1, i);
-        w2[IB1] = q(iBx, k, j - 1, i);
-        w2[IB2] = q(iBy, k, j - 1, i);
-        w2[IB3] = q(iBz, k, j - 1, i);
-
         q2[IDN] = cons(IDN, k, j - 1, i);
         q2[IM1] = cons(ivx, k, j - 1, i);
         q2[IM2] = cons(ivy, k, j - 1, i);
@@ -232,15 +152,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q2[IB1] = cons(iBx, k, j - 1, i);
         q2[IB2] = cons(iBy, k, j - 1, i);
         q2[IB3] = cons(iBz, k, j - 1, i);
-
-        w3[IDN] = q(IDN, k, j, i);
-        w3[IV1] = q(ivx, k, j, i);
-        w3[IV2] = q(ivy, k, j, i);
-        w3[IV3] = q(ivz, k, j, i);
-        w3[IPR] = q(IPR, k, j, i);
-        w3[IB1] = q(iBx, k, j, i);
-        w3[IB2] = q(iBy, k, j, i);
-        w3[IB3] = q(iBz, k, j, i);
 
         q3[IDN] = cons(IDN, k, j, i);
         q3[IM1] = cons(ivx, k, j, i);
@@ -251,15 +162,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q3[IB2] = cons(iBy, k, j, i);
         q3[IB3] = cons(iBz, k, j, i);
 
-        w4[IDN] = q(IDN, k, j + 1, i);
-        w4[IV1] = q(ivx, k, j + 1, i);
-        w4[IV2] = q(ivy, k, j + 1, i);
-        w4[IV3] = q(ivz, k, j + 1, i);
-        w4[IPR] = q(IPR, k, j + 1, i);
-        w4[IB1] = q(iBx, k, j + 1, i);
-        w4[IB2] = q(iBy, k, j + 1, i);
-        w4[IB3] = q(iBz, k, j + 1, i);
-
         q4[IDN] = cons(IDN, k, j + 1, i);
         q4[IM1] = cons(ivx, k, j + 1, i);
         q4[IM2] = cons(ivy, k, j + 1, i);
@@ -268,15 +170,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q4[IB1] = cons(iBx, k, j + 1, i);
         q4[IB2] = cons(iBy, k, j + 1, i);
         q4[IB3] = cons(iBz, k, j + 1, i);
-
-        w5[IDN] = q(IDN, k, j + 2, i);
-        w5[IV1] = q(ivx, k, j + 2, i);
-        w5[IV2] = q(ivy, k, j + 2, i);
-        w5[IV3] = q(ivz, k, j + 2, i);
-        w5[IPR] = q(IPR, k, j + 2, i);
-        w5[IB1] = q(iBx, k, j + 2, i);
-        w5[IB2] = q(iBy, k, j + 2, i);
-        w5[IB3] = q(iBz, k, j + 2, i);
 
         q5[IDN] = cons(IDN, k, j + 2, i);
         q5[IM1] = cons(ivx, k, j + 2, i);
@@ -289,15 +182,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
       }
 
       if (ivx == IV3){
-        w0[IDN] = q(IDN, k - 3, j, i);
-        w0[IV1] = q(ivx, k - 3, j, i);
-        w0[IV2] = q(ivy, k - 3, j, i);
-        w0[IV3] = q(ivz, k - 3, j, i);
-        w0[IPR] = q(IPR, k - 3, j, i);
-        w0[IB1] = q(iBx, k - 3, j, i);
-        w0[IB2] = q(iBy, k - 3, j, i);
-        w0[IB3] = q(iBz, k - 3, j, i);
-
         q0[IDN] = cons(IDN, k - 3, j, i);
         q0[IM1] = cons(ivx, k - 3, j, i);
         q0[IM2] = cons(ivy, k - 3, j, i);
@@ -306,15 +190,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q0[IB1] = cons(iBx, k - 3, j, i);
         q0[IB2] = cons(iBy, k - 3, j, i);
         q0[IB3] = cons(iBz, k - 3, j, i);
-
-        w1[IDN] = q(IDN, k - 2, j, i);
-        w1[IV1] = q(ivx, k - 2, j, i);
-        w1[IV2] = q(ivy, k - 2, j, i);
-        w1[IV3] = q(ivz, k - 2, j, i);
-        w1[IPR] = q(IPR, k - 2, j, i);
-        w1[IB1] = q(iBx, k - 2, j, i);
-        w1[IB2] = q(iBy, k - 2, j, i);
-        w1[IB3] = q(iBz, k - 2, j, i);
 
         q1[IDN] = cons(IDN, k - 2, j, i);
         q1[IM1] = cons(ivx, k - 2, j, i);
@@ -325,15 +200,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q1[IB2] = cons(iBy, k - 2, j, i);
         q1[IB3] = cons(iBz, k - 2, j, i);
 
-        w2[IDN] = q(IDN, k - 1, j, i);
-        w2[IV1] = q(ivx, k - 1, j, i);
-        w2[IV2] = q(ivy, k - 1, j, i);
-        w2[IV3] = q(ivz, k - 1, j, i);
-        w2[IPR] = q(IPR, k - 1, j, i);
-        w2[IB1] = q(iBx, k - 1, j, i);
-        w2[IB2] = q(iBy, k - 1, j, i);
-        w2[IB3] = q(iBz, k - 1, j, i);
-
         q2[IDN] = cons(IDN, k - 1, j, i);
         q2[IM1] = cons(ivx, k - 1, j, i);
         q2[IM2] = cons(ivy, k - 1, j, i);
@@ -342,15 +208,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q2[IB1] = cons(iBx, k - 1, j, i);
         q2[IB2] = cons(iBy, k - 1, j, i);
         q2[IB3] = cons(iBz, k - 1, j, i);
-        
-        w3[IDN] = q(IDN, k, j, i);
-        w3[IV1] = q(ivx, k, j, i);
-        w3[IV2] = q(ivy, k, j, i);
-        w3[IV3] = q(ivz, k, j, i);
-        w3[IPR] = q(IPR, k, j, i);
-        w3[IB1] = q(iBx, k, j, i);
-        w3[IB2] = q(iBy, k, j, i);
-        w3[IB3] = q(iBz, k, j, i);
 
         q3[IDN] = cons(IDN, k, j, i);
         q3[IM1] = cons(ivx, k, j, i);
@@ -361,15 +218,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q3[IB2] = cons(iBy, k, j, i);
         q3[IB3] = cons(iBz, k, j, i);
 
-        w4[IDN] = q(IDN, k + 1, j, i);
-        w4[IV1] = q(ivx, k + 1, j, i);
-        w4[IV2] = q(ivy, k + 1, j, i);
-        w4[IV3] = q(ivz, k + 1, j, i);
-        w4[IPR] = q(IPR, k + 1, j, i);
-        w4[IB1] = q(iBx, k + 1, j, i);
-        w4[IB2] = q(iBy, k + 1, j, i);
-        w4[IB3] = q(iBz, k + 1, j, i);
-
         q4[IDN] = cons(IDN, k + 1, j, i);
         q4[IM1] = cons(ivx, k + 1, j, i);
         q4[IM2] = cons(ivy, k + 1, j, i);
@@ -378,15 +226,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         q4[IB1] = cons(iBx, k + 1, j, i);
         q4[IB2] = cons(iBy, k + 1, j, i);
         q4[IB3] = cons(iBz, k + 1, j, i);
-
-        w5[IDN] = q(IDN, k + 2, j, i);
-        w5[IV1] = q(ivx, k + 2, j, i);
-        w5[IV2] = q(ivy, k + 2, j, i);
-        w5[IV3] = q(ivz, k + 2, j, i);
-        w5[IPR] = q(IPR, k + 2, j, i);
-        w5[IB1] = q(iBx, k + 2, j, i);
-        w5[IB2] = q(iBy, k + 2, j, i);
-        w5[IB3] = q(iBz, k + 2, j, i);
 
         q5[IDN] = cons(IDN, k + 2, j, i);
         q5[IM1] = cons(ivx, k + 2, j, i);
@@ -399,80 +238,128 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
       }
 
       //--- Step 1.  Compute the physical flux at each grid point:
-      Real Bnm0 = w0[IB1] * w0[IB1] + w0[IB2] * w0[IB2] + w0[IB3] * w0[IB3];
+
+      //--- f0 ---
+      Real irho0 = 1.0 / q0[IDN];
+      Real vex0 = q0[IM1] * irho0;
+      Real vey0 = q0[IM2] * irho0;
+      Real vez0 = q0[IM3] * irho0;
+      Real Bnm0 = q0[IB1] * q0[IB1] + q0[IB2] * q0[IB2] + q0[IB3] * q0[IB3];
+      Real vnm0 = vex0 * vex0 + vey0 * vey0 + vez0 * vez0;
+      Real pre0 = (gm1) * (q0[IEN] - 0.5*(q0[IDN]*vnm0 + Bnm0));
+
       f0[IDN] = q0[IM1];
-      f0[IM1] = q0[IM1] * w0[IV1] + w0[IPR] + 0.5 * Bnm0 - w0[IB1] * w0[IB1];
-      f0[IM2] = q0[IM1] * w0[IV2] - w0[IB1] * w0[IB2];
-      f0[IM3] = q0[IM1] * w0[IV3] - w0[IB1] * w0[IB3];
-      f0[IEN] = w0[IV1] * (q0[IEN] + w0[IPR] + 0.5 * Bnm0) - w0[IB1] * (w0[IV1] * w0[IB1] + w0[IV2] * w0[IB2] + w0[IV3] * w0[IB3]);
+      f0[IM1] = q0[IM1] * vex0 + pre0 + 0.5 * Bnm0 - q0[IB1] * q0[IB1];
+      f0[IM2] = q0[IM1] * vey0 - q0[IB1] * q0[IB2];
+      f0[IM3] = q0[IM1] * vez0 - q0[IB1] * q0[IB3];
+      f0[IEN] = vex0 * (q0[IEN] + pre0 + 0.5 * Bnm0) - q0[IB1] * (vex0 * q0[IB1] + vey0 * q0[IB2] + vez0 * q0[IB3]);
       f0[IB1] = 0.0;
-      f0[IB2] = w0[IV1] * w0[IB2] - w0[IV2] * w0[IB1];
-      f0[IB3] = w0[IV1] * w0[IB3] - w0[IV3] * w0[IB1];
+      f0[IB2] = vex0 * q0[IB2] - vey0 * q0[IB1];
+      f0[IB3] = vex0 * q0[IB3] - vez0 * q0[IB1];
 
-      Real Bnm1 = w1[IB1] * w1[IB1] + w1[IB2] * w1[IB2] + w1[IB3] * w1[IB3];
+      //--- f1 ---
+      Real irho1 = 1.0 / q1[IDN];
+      Real vex1 = q1[IM1] * irho1;
+      Real vey1 = q1[IM2] * irho1;
+      Real vez1 = q1[IM3] * irho1;
+      Real Bnm1 = q1[IB1] * q1[IB1] + q1[IB2] * q1[IB2] + q1[IB3] * q1[IB3];
+      Real vnm1 = vex1 * vex1 + vey1 * vey1 + vez1 * vez1;
+      Real pre1 = (gm1) * (q1[IEN] - 0.5*(q1[IDN]*vnm1 + Bnm1));
+
       f1[IDN] = q1[IM1];
-      f1[IM1] = q1[IM1] * w1[IV1] + w1[IPR] + 0.5 * Bnm1 - w1[IB1] * w1[IB1];
-      f1[IM2] = q1[IM1] * w1[IV2] - w1[IB1] * w1[IB2];
-      f1[IM3] = q1[IM1] * w1[IV3] - w1[IB1] * w1[IB3];
-      f1[IEN] = w1[IV1] * (q1[IEN] + w1[IPR] + 0.5 * Bnm1) - w1[IB1] * (w1[IV1] * w1[IB1] + w1[IV2] * w1[IB2] + w1[IV3] * w1[IB3]);
+      f1[IM1] = q1[IM1] * vex1 + pre1 + 0.5 * Bnm1 - q1[IB1] * q1[IB1];
+      f1[IM2] = q1[IM1] * vey1 - q1[IB1] * q1[IB2];
+      f1[IM3] = q1[IM1] * vez1 - q1[IB1] * q1[IB3];
+      f1[IEN] = vex1 * (q1[IEN] + pre1 + 0.5 * Bnm1) - q1[IB1] * (vex1 * q1[IB1] + vey1 * q1[IB2] + vez1 * q1[IB3]);
       f1[IB1] = 0.0;
-      f1[IB2] = w1[IV1] * w1[IB2] - w1[IV2] * w1[IB1];
-      f1[IB3] = w1[IV1] * w1[IB3] - w1[IV3] * w1[IB1];
+      f1[IB2] = vex1 * q1[IB2] - vey1 * q1[IB1];
+      f1[IB3] = vex1 * q1[IB3] - vez1 * q1[IB1];
 
-      Real Bnm2 = w2[IB1] * w2[IB1] + w2[IB2] * w2[IB2] + w2[IB3] * w2[IB3];
+      //--- f2 ---
+      Real irho2 = 1.0 / q2[IDN];
+      Real vex2 = q2[IM1] * irho2;
+      Real vey2 = q2[IM2] * irho2;
+      Real vez2 = q2[IM3] * irho2;
+      Real Bnm2 = q2[IB1] * q2[IB1] + q2[IB2] * q2[IB2] + q2[IB3] * q2[IB3];
+      Real vnm2 = vex2 * vex2 + vey2 * vey2 + vez2 * vez2;
+      Real pre2 = (gm1) * (q2[IEN] - 0.5*(q2[IDN]*vnm2 + Bnm2));
+
       f2[IDN] = q2[IM1];
-      f2[IM1] = q2[IM1] * w2[IV1] + w2[IPR] + 0.5 * Bnm2 - w2[IB1] * w2[IB1];
-      f2[IM2] = q2[IM1] * w2[IV2] - w2[IB1] * w2[IB2];
-      f2[IM3] = q2[IM1] * w2[IV3] - w2[IB1] * w2[IB3];
-      f2[IEN] = w2[IV1] * (q2[IEN] + w2[IPR] + 0.5 * Bnm2) - w2[IB1] * (w2[IV1] * w2[IB1] + w2[IV2] * w2[IB2] + w2[IV3] * w2[IB3]);
+      f2[IM1] = q2[IM1] * vex2 + pre2 + 0.5 * Bnm2 - q2[IB1] * q2[IB1];
+      f2[IM2] = q2[IM1] * vey2 - q2[IB1] * q2[IB2];
+      f2[IM3] = q2[IM1] * vez2 - q2[IB1] * q2[IB3];
+      f2[IEN] = vex2 * (q2[IEN] + pre2 + 0.5 * Bnm2) - q2[IB1] * (vex2 * q2[IB1] + vey2 * q2[IB2] + vez2 * q2[IB3]);
       f2[IB1] = 0.0;
-      f2[IB2] = w2[IV1] * w2[IB2] - w2[IV2] * w2[IB1];
-      f2[IB3] = w2[IV1] * w2[IB3] - w2[IV3] * w2[IB1];
+      f2[IB2] = vex2 * q2[IB2] - vey2 * q2[IB1];
+      f2[IB3] = vex2 * q2[IB3] - vez2 * q2[IB1];
 
-      Real Bnm3 = w3[IB1] * w3[IB1] + w3[IB2] * w3[IB2] + w3[IB3] * w3[IB3];
+      //--- f3 ---
+      Real irho3 = 1.0 / q3[IDN];
+      Real vex3 = q3[IM1] * irho3;
+      Real vey3 = q3[IM2] * irho3;
+      Real vez3 = q3[IM3] * irho3;
+      Real Bnm3 = q3[IB1] * q3[IB1] + q3[IB2] * q3[IB2] + q3[IB3] * q3[IB3];
+      Real vnm3 = vex3 * vex3 + vey3 * vey3 + vez3 * vez3;
+      Real pre3 = (gm1) * (q3[IEN] - 0.5*(q3[IDN]*vnm3 + Bnm3));
+
       f3[IDN] = q3[IM1];
-      f3[IM1] = q3[IM1] * w3[IV1] + w3[IPR] + 0.5 * Bnm3 - w3[IB1] * w3[IB1];
-      f3[IM2] = q3[IM1] * w3[IV2] - w3[IB1] * w3[IB2];
-      f3[IM3] = q3[IM1] * w3[IV3] - w3[IB1] * w3[IB3];
-      f3[IEN] = w3[IV1] * (q3[IEN] + w3[IPR] + 0.5 * Bnm3) - w3[IB1] * (w3[IV1] * w3[IB1] + w3[IV2] * w3[IB2] + w3[IV3] * w3[IB3]);
+      f3[IM1] = q3[IM1] * vex3 + pre3 + 0.5 * Bnm3 - q3[IB1] * q3[IB1];
+      f3[IM2] = q3[IM1] * vey3 - q3[IB1] * q3[IB2];
+      f3[IM3] = q3[IM1] * vez3 - q3[IB1] * q3[IB3];
+      f3[IEN] = vex3 * (q3[IEN] + pre3 + 0.5 * Bnm3) - q3[IB1] * (vex3 * q3[IB1] + vey3 * q3[IB2] + vez3 * q3[IB3]);
       f3[IB1] = 0.0;
-      f3[IB2] = w3[IV1] * w3[IB2] - w3[IV2] * w3[IB1];
-      f3[IB3] = w3[IV1] * w3[IB3] - w3[IV3] * w3[IB1];
+      f3[IB2] = vex3 * q3[IB2] - vey3 * q3[IB1];
+      f3[IB3] = vex3 * q3[IB3] - vez3 * q3[IB1];
 
-      Real Bnm4 = w4[IB1] * w4[IB1] + w4[IB2] * w4[IB2] + w4[IB3] * w4[IB3];
+      //--- f4 ---
+      Real irho4 = 1.0 / q4[IDN];
+      Real vex4 = q4[IM1] * irho4;
+      Real vey4 = q4[IM2] * irho4;
+      Real vez4 = q4[IM3] * irho4;
+      Real Bnm4 = q4[IB1] * q4[IB1] + q4[IB2] * q4[IB2] + q4[IB3] * q4[IB3];
+      Real vnm4 = vex4 * vex4 + vey4 * vey4 + vez4 * vez4;
+      Real pre4 = (gm1) * (q4[IEN] - 0.5*(q4[IDN]*vnm4 + Bnm4));
+
       f4[IDN] = q4[IM1];
-      f4[IM1] = q4[IM1] * w4[IV1] + w4[IPR] + 0.5 * Bnm4 - w4[IB1] * w4[IB1];
-      f4[IM2] = q4[IM1] * w4[IV2] - w4[IB1] * w4[IB2];
-      f4[IM3] = q4[IM1] * w4[IV3] - w4[IB1] * w4[IB3];
-      f4[IEN] = w4[IV1] * (q4[IEN] + w4[IPR] + 0.5 * Bnm4) - w4[IB1] * (w4[IV1] * w4[IB1] + w4[IV2] * w4[IB2] + w4[IV3] * w4[IB3]);
+      f4[IM1] = q4[IM1] * vex4 + pre4 + 0.5 * Bnm4 - q4[IB1] * q4[IB1];
+      f4[IM2] = q4[IM1] * vey4 - q4[IB1] * q4[IB2];
+      f4[IM3] = q4[IM1] * vez4 - q4[IB1] * q4[IB3];
+      f4[IEN] = vex4 * (q4[IEN] + pre4 + 0.5 * Bnm4) - q4[IB1] * (vex4 * q4[IB1] + vey4 * q4[IB2] + vez4 * q4[IB3]);
       f4[IB1] = 0.0;
-      f4[IB2] = w4[IV1] * w4[IB2] - w4[IV2] * w4[IB1];
-      f4[IB3] = w4[IV1] * w4[IB3] - w4[IV3] * w4[IB1];
+      f4[IB2] = vex4 * q4[IB2] - vey4 * q4[IB1];
+      f4[IB3] = vex4 * q4[IB3] - vez4 * q4[IB1];
 
-      Real Bnm5 = w5[IB1] * w5[IB1] + w5[IB2] * w5[IB2] + w5[IB3] * w5[IB3];
+      //--- f5 ---
+      Real irho5 = 1.0 / q5[IDN];
+      Real vex5 = q5[IM1] * irho5;
+      Real vey5 = q5[IM2] * irho5;
+      Real vez5 = q5[IM3] * irho5;
+      Real Bnm5 = q5[IB1] * q5[IB1] + q5[IB2] * q5[IB2] + q5[IB3] * q5[IB3];
+      Real vnm5 = vex5 * vex5 + vey5 * vey5 + vez5 * vez5;
+      Real pre5 = (gm1) * (q5[IEN] - 0.5*(q5[IDN]*vnm5 + Bnm5));
+
       f5[IDN] = q5[IM1];
-      f5[IM1] = q5[IM1] * w5[IV1] + w5[IPR] + 0.5 * Bnm5 - w5[IB1] * w5[IB1];
-      f5[IM2] = q5[IM1] * w5[IV2] - w5[IB1] * w5[IB2];
-      f5[IM3] = q5[IM1] * w5[IV3] - w5[IB1] * w5[IB3];
-      f5[IEN] = w5[IV1] * (q5[IEN] + w5[IPR] + 0.5 * Bnm5) - w5[IB1] * (w5[IV1] * w5[IB1] + w5[IV2] * w5[IB2] + w5[IV3] * w5[IB3]);
+      f5[IM1] = q5[IM1] * vex5 + pre5 + 0.5 * Bnm5 - q5[IB1] * q5[IB1];
+      f5[IM2] = q5[IM1] * vey5 - q5[IB1] * q5[IB2];
+      f5[IM3] = q5[IM1] * vez5 - q5[IB1] * q5[IB3];
+      f5[IEN] = vex5 * (q5[IEN] + pre5 + 0.5 * Bnm5) - q5[IB1] * (vex5 * q5[IB1] + vey5 * q5[IB2] + vez5 * q5[IB3]);
       f5[IB1] = 0.0;
-      f5[IB2] = w5[IV1] * w5[IB2] - w5[IV2] * w5[IB1];
-      f5[IB3] = w5[IV1] * w5[IB3] - w5[IV3] * w5[IB1];
+      f5[IB2] = vex5 * q5[IB2] - vey5 * q5[IB1];
+      f5[IB3] = vex5 * q5[IB3] - vez5 * q5[IB1];
 
-      //--- Step 2.  At each x_{i+1/2,j,k}:
-      //--- (a) Compute the average state w_{i+1/2,j,k} in the primitive variables:
+      //--- Step 2.  At each x_{i-1/2,j,k}: (using cells i-1 and i)
+      //--- (a) Compute the average state w_{i-1/2,j,k} in the primitive variables:
 
-      Real half_den = 0.5 * (w2[IDN] + w3[IDN]);
-      Real half_vex = 0.5 * (w2[IV1] + w3[IV1]);
-      Real half_vey = 0.5 * (w2[IV2] + w3[IV2]);
-      Real half_vez = 0.5 * (w2[IV3] + w3[IV3]);
-      Real half_pre = 0.5 * (w2[IPR] + w3[IPR]);
-      Real half_Bx  = 0.5 * (w2[IB1] + w3[IB1]);
-      Real half_By  = 0.5 * (w2[IB2] + w3[IB2]);
-      Real half_Bz  = 0.5 * (w2[IB3] + w3[IB3]);
+      Real half_den = 0.5 * (q2[IDN] + q3[IDN]);
+      Real half_vex = 0.5 * (vex2 + vex3);
+      Real half_vey = 0.5 * (vey2 + vey3);
+      Real half_vez = 0.5 * (vez2 + vez3);
+      Real half_pre = 0.5 * (pre2 + pre3);
+      Real half_Bx  = 0.5 * (q2[IB1] + q3[IB1]);
+      Real half_By  = 0.5 * (q2[IB2] + q3[IB2]);
+      Real half_Bz  = 0.5 * (q2[IB3] + q3[IB3]);
 
-
-      //--- (b) Compute the right and left eigenvectors of the flux Jacobian matrix, ∂f/∂x, at x = x_{i+1/2,j,k}:
+      //--- (b) Compute the right and left eigenvectors of the flux Jacobian matrix, ∂f/∂x, at x = x_{i-1/2,j,k}:
 
       // See Section 1.5 (Scaling Theorem Example: Magnetohydrodynamic Equations) of:
       // "Numerical Methods for Gasdynamic Systems on Unstructured Meshes"
@@ -639,7 +526,7 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
       lu[0][5] = 0.0;
       lu[0][6] = 0.0;
       lu[0][7] = 0.0;
-        
+
       // 2 - Left Eigenvector
       Real nen = n1*n1*(t2*t2+t3*t3) + n2*n2*(t1*t1+t3*t3) + n3*n3*(t1*t1+t2*t2) - 2.0*n2*n3*t2*t3 - 2.0*n1*n3*t1*t3 - 2.0*n1*n2*t1*t2;
       Real nen2 = a * sq1og * nen;
@@ -795,26 +682,26 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
       // g^{±}_{j}= 0.5 * (g_j ± α^{m} v_j) where α(m) = max_k | λ^{m} q_k | 
       // is the maximal wave speed of the m^{th} component of characteristic variables over all grid points
 
-      Real aa0 = std::sqrt((gamma * w0[IPR]) / w0[IDN]);
-      Real aa1 = std::sqrt((gamma * w1[IPR]) / w1[IDN]);
-      Real aa2 = std::sqrt((gamma * w2[IPR]) / w2[IDN]);
-      Real aa3 = std::sqrt((gamma * w3[IPR]) / w3[IDN]);
-      Real aa4 = std::sqrt((gamma * w4[IPR]) / w4[IDN]);
-      Real aa5 = std::sqrt((gamma * w5[IPR]) / w5[IDN]);
+      Real aa0 = std::sqrt(gamma * pre0 * irho0);
+      Real aa1 = std::sqrt(gamma * pre1 * irho1);
+      Real aa2 = std::sqrt(gamma * pre2 * irho2);
+      Real aa3 = std::sqrt(gamma * pre3 * irho3);
+      Real aa4 = std::sqrt(gamma * pre4 * irho4);
+      Real aa5 = std::sqrt(gamma * pre5 * irho5);
 
-      Real ca0 = std::sqrt((w0[IB1] * w0[IB1] + w0[IB2] * w0[IB2] + w0[IB3] * w0[IB3]) / w0[IDN]);
-      Real ca1 = std::sqrt((w1[IB1] * w1[IB1] + w1[IB2] * w1[IB2] + w1[IB3] * w1[IB3]) / w1[IDN]);
-      Real ca2 = std::sqrt((w2[IB1] * w2[IB1] + w2[IB2] * w2[IB2] + w2[IB3] * w2[IB3]) / w2[IDN]);
-      Real ca3 = std::sqrt((w3[IB1] * w3[IB1] + w3[IB2] * w3[IB2] + w3[IB3] * w3[IB3]) / w3[IDN]);
-      Real ca4 = std::sqrt((w4[IB1] * w4[IB1] + w4[IB2] * w4[IB2] + w4[IB3] * w4[IB3]) / w4[IDN]);
-      Real ca5 = std::sqrt((w5[IB1] * w5[IB1] + w5[IB2] * w5[IB2] + w5[IB3] * w5[IB3]) / w5[IDN]);
+      Real ca0 = std::sqrt(Bnm0 * irho0);
+      Real ca1 = std::sqrt(Bnm1 * irho1);
+      Real ca2 = std::sqrt(Bnm2 * irho2);
+      Real ca3 = std::sqrt(Bnm3 * irho3);
+      Real ca4 = std::sqrt(Bnm4 * irho4);
+      Real ca5 = std::sqrt(Bnm5 * irho5);
 
-      Real cax0 = std::sqrt((w0[IB1] * w0[IB1]) / w0[IDN]);
-      Real cax1 = std::sqrt((w1[IB1] * w1[IB1]) / w1[IDN]);
-      Real cax2 = std::sqrt((w2[IB1] * w2[IB1]) / w2[IDN]);
-      Real cax3 = std::sqrt((w3[IB1] * w3[IB1]) / w3[IDN]);
-      Real cax4 = std::sqrt((w4[IB1] * w4[IB1]) / w4[IDN]);
-      Real cax5 = std::sqrt((w5[IB1] * w5[IB1]) / w5[IDN]);
+      Real cax0 = std::sqrt(q0[IB1] * q0[IB1] * irho0);
+      Real cax1 = std::sqrt(q1[IB1] * q1[IB1] * irho1);
+      Real cax2 = std::sqrt(q2[IB1] * q2[IB1] * irho2);
+      Real cax3 = std::sqrt(q3[IB1] * q3[IB1] * irho3);
+      Real cax4 = std::sqrt(q4[IB1] * q4[IB1] * irho4);
+      Real cax5 = std::sqrt(q5[IB1] * q5[IB1] * irho5);
 
       Real cfx0 = std::sqrt(0.5 * std::abs(aa0 * aa0 + ca0 * ca0 + std::sqrt((aa0 * aa0 + ca0 * ca0) * (aa0 * aa0 + ca0 * ca0) - (4 * aa0 * aa0 * cax0 * cax0))));
       Real cfx1 = std::sqrt(0.5 * std::abs(aa1 * aa1 + ca1 * ca1 + std::sqrt((aa1 * aa1 + ca1 * ca1) * (aa1 * aa1 + ca1 * ca1) - (4 * aa1 * aa1 * cax1 * cax1))));
@@ -832,18 +719,17 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
 
       Real em = 1.0e-15;
 
-      Real max_eig_1 = std::max({em, std::abs(w0[IV1]),      std::abs(w1[IV1]),      std::abs(w2[IV1]),      std::abs(w3[IV1]),      std::abs(w4[IV1]),      std::abs(w5[IV1])});
-      Real max_eig_2 = std::max({em, std::abs(w0[IV1]),      std::abs(w1[IV1]),      std::abs(w2[IV1]),      std::abs(w3[IV1]),      std::abs(w4[IV1]),      std::abs(w5[IV1])});
-      Real max_eig_3 = std::max({em, std::abs(w0[IV1]+cax0), std::abs(w1[IV1]+cax1), std::abs(w2[IV1]+cax2), std::abs(w3[IV1]+cax3), std::abs(w4[IV1]+cax4), std::abs(w5[IV1]+cax5)});
-      Real max_eig_4 = std::max({em, std::abs(w0[IV1]-cax0), std::abs(w1[IV1]-cax1), std::abs(w2[IV1]-cax2), std::abs(w3[IV1]-cax3), std::abs(w4[IV1]-cax4), std::abs(w5[IV1]-cax5)});
-      Real max_eig_5 = std::max({em, std::abs(w0[IV1]+cfx0), std::abs(w1[IV1]+cfx1), std::abs(w2[IV1]+cfx2), std::abs(w3[IV1]+cfx3), std::abs(w4[IV1]+cfx4), std::abs(w5[IV1]+cfx5)});
-      Real max_eig_6 = std::max({em, std::abs(w0[IV1]-cfx0), std::abs(w1[IV1]-cfx1), std::abs(w2[IV1]-cfx2), std::abs(w3[IV1]-cfx3), std::abs(w4[IV1]-cfx4), std::abs(w5[IV1]-cfx5)});
-      Real max_eig_7 = std::max({em, std::abs(w0[IV1]+csx0), std::abs(w1[IV1]+csx1), std::abs(w2[IV1]+csx2), std::abs(w3[IV1]+csx3), std::abs(w4[IV1]+csx4), std::abs(w5[IV1]+csx5)});
-      Real max_eig_8 = std::max({em, std::abs(w0[IV1]-csx0), std::abs(w1[IV1]-csx1), std::abs(w2[IV1]-csx2), std::abs(w3[IV1]-csx3), std::abs(w4[IV1]-csx4), std::abs(w5[IV1]-csx5)});
+      Real max_eig_1 = std::max({em, std::abs(vex0),      std::abs(vex1),      std::abs(vex2),      std::abs(vex3),      std::abs(vex4),      std::abs(vex5)});
+      Real max_eig_2 = std::max({em, std::abs(vex0),      std::abs(vex1),      std::abs(vex2),      std::abs(vex3),      std::abs(vex4),      std::abs(vex5)});
+      Real max_eig_3 = std::max({em, std::abs(vex0+cax0), std::abs(vex1+cax1), std::abs(vex2+cax2), std::abs(vex3+cax3), std::abs(vex4+cax4), std::abs(vex5+cax5)});
+      Real max_eig_4 = std::max({em, std::abs(vex0-cax0), std::abs(vex1-cax1), std::abs(vex2-cax2), std::abs(vex3-cax3), std::abs(vex4-cax4), std::abs(vex5-cax5)});
+      Real max_eig_5 = std::max({em, std::abs(vex0+cfx0), std::abs(vex1+cfx1), std::abs(vex2+cfx2), std::abs(vex3+cfx3), std::abs(vex4+cfx4), std::abs(vex5+cfx5)});
+      Real max_eig_6 = std::max({em, std::abs(vex0-cfx0), std::abs(vex1-cfx1), std::abs(vex2-cfx2), std::abs(vex3-cfx3), std::abs(vex4-cfx4), std::abs(vex5-cfx5)});
+      Real max_eig_7 = std::max({em, std::abs(vex0+csx0), std::abs(vex1+csx1), std::abs(vex2+csx2), std::abs(vex3+csx3), std::abs(vex4+csx4), std::abs(vex5+csx5)});
+      Real max_eig_8 = std::max({em, std::abs(vex0-csx0), std::abs(vex1-csx1), std::abs(vex2-csx2), std::abs(vex3-csx3), std::abs(vex4-csx4), std::abs(vex5-csx5)});
 
       Real alpha[NMHD] = {max_eig_1, max_eig_2, max_eig_3, max_eig_4, max_eig_5, max_eig_6, max_eig_7, max_eig_8};
-
-
+      
       for (int iii = 0; iii < NMHD; ++iii) {
 
         g_p0[iii] = 0.5 * (gj0[iii] + 1.1 * alpha[iii] * vj0[iii]);
@@ -865,81 +751,10 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
       //--- (e) Perform a WENO reconstruction on each of the computed flux components gj± to obtain 
       // the corresponding component of the numerical flux
 
-      Real epsilon = 1E-6;
-
-      // TODO(wendelnc) Make WENO5 a function in weno_helpers.hpp
-
-      // gp0,gp1,gp2,gp3,gp4 are vmm,vm,v,vp,vpp
       for (int jjj = 0; jjj < NMHD; ++jjj) {     
 
-        Real q_im2 = g_p0[jjj];
-        Real q_im1 = g_p1[jjj];
-        Real q_i   = g_p2[jjj];
-        Real q_ip1 = g_p3[jjj];
-        Real q_ip2 = g_p4[jjj];
-
-        Real beta[3]; // (2.63) 
-        beta[0] = (13.0/12.0)*SQR(q_i - 2*q_ip1 + q_ip2) + (1.0/4.0)*SQR(3*q_i - 4*q_ip1 + q_ip2);
-        beta[1] = (13.0/12.0)*SQR(q_im1 - 2*q_i + q_ip1) + (1.0/4.0)*SQR(q_im1 - q_ip1);
-        beta[2] = (13.0/12.0)*SQR(q_im2 - 2*q_im1 + q_i) + (1.0/4.0)*SQR(q_im2 - 4*q_im1 + 3*q_i);
-
-        Real indicator[3]; // fraction part of (2.59) 
-        indicator[0] = 1 / SQR(epsilon + beta[0]);
-        indicator[1] = 1 / SQR(epsilon + beta[1]);
-        indicator[2] = 1 / SQR(epsilon + beta[2]);
-
-        // compute qL_ip1
-        Real f[3]; // polynomial based on constants c_{r,j} in Table 2.1 
-        // Factor of 1/6 in coefficients of f[] array applied to alpha_sum to reduce divisions
-        f[0] = 2*q_i + 5*q_ip1 - q_ip2;
-        f[1] = -1*q_im1 + 5*q_i + 2*q_ip1;
-        f[2] = 2*q_im2 - 7*q_im1 + 11*q_i;
-
-        Real alpha[3]; // (2.59) & below (2.54)
-        alpha[0] = indicator[0] * 3.0 / 10.0;
-        alpha[1] = indicator[1] * 6.0 / 10.0;
-        alpha[2] = indicator[2] * 1.0 / 10.0;
-        Real alpha_sum = 6.0 * (alpha[0] + alpha[1] + alpha[2]);
-
-        weno1[jjj] = (alpha[0] * f[0] + alpha[1] * f[1] + alpha[2] * f[2]) / alpha_sum; // (2.52) 
-
-      }
-
-      // gm5,gm4,gm3,gm2,gm1 are vmm,vm,v,vp,vpp
-      for (int jjjj = 0; jjjj < NMHD; ++jjjj) {
-
-        Real q_im2 = g_m5[jjjj];
-        Real q_im1 = g_m4[jjjj];
-        Real q_i   = g_m3[jjjj];
-        Real q_ip1 = g_m2[jjjj];
-        Real q_ip2 = g_m1[jjjj];
-
-        Real beta[3]; // (2.63) 
-        beta[0] = (13.0/12.0)*SQR(q_i - 2*q_ip1 + q_ip2) + (1.0/4.0)*SQR(3*q_i - 4*q_ip1 + q_ip2);
-        beta[1] = (13.0/12.0)*SQR(q_im1 - 2*q_i + q_ip1) + (1.0/4.0)*SQR(q_im1 - q_ip1);
-        beta[2] = (13.0/12.0)*SQR(q_im2 - 2*q_im1 + q_i) + (1.0/4.0)*SQR(q_im2 - 4*q_im1 + 3*q_i);
-
-        Real indicator[3]; // fraction part of (2.59) 
-        indicator[0] = 1 / SQR(epsilon + beta[0]);
-        indicator[1] = 1 / SQR(epsilon + beta[1]);
-        indicator[2] = 1 / SQR(epsilon + beta[2]);
-
-        // compute qL_ip1
-        Real f[3]; // polynomial based on constants c_{r,j} in Table 2.1 
-        // Factor of 1/6 in coefficients of f[] array applied to alpha_sum to reduce divisions
-        f[0] = 2*q_i + 5*q_ip1 - q_ip2;
-        f[1] = -1*q_im1 + 5*q_i + 2*q_ip1;
-        f[2] = 2*q_im2 - 7*q_im1 + 11*q_i;
-
-        Real alpha[3]; // (2.59) & below (2.54)
-        alpha[0] = indicator[0] * 3.0 / 10.0;
-        alpha[1] = indicator[1] * 6.0 / 10.0;
-        alpha[2] = indicator[2] * 1.0 / 10.0;
-        Real alpha_sum = 6.0 * (alpha[0] + alpha[1] + alpha[2]);
-
-        weno2[jjjj] = (alpha[0] * f[0] + alpha[1] * f[1] + alpha[2] * f[2]) / alpha_sum; // (2.52) 
-        
-        weno_sum[jjjj] = weno1[jjjj] + weno2[jjjj];
+        weno_sum[jjj] = WENO5(g_p0[jjj], g_p1[jjj], g_p2[jjj], g_p3[jjj], g_p4[jjj]) 
+                      + WENO5(g_m5[jjj], g_m4[jjj], g_m3[jjj], g_m2[jjj], g_m1[jjj]);  
 
       }
 
@@ -947,12 +762,12 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno5> {
         
       for (int iiii = 0; iiii < NMHD; ++iiii) {
         f_half[iiii] = 0.0;
-        for (int jjjjj = 0; jjjjj < NMHD; ++jjjjj) {
-          f_half[iiii] += rr[iiii][jjjjj] * weno_sum[jjjjj];
+        for (int jjjj = 0; jjjj < NMHD; ++jjjj) {
+          f_half[iiii] += rr[iiii][jjjj] * weno_sum[jjjj];
         }
       }
-
-      //--- Step 3.  Update flux at each x_{i+1/2,j,k}:
+      
+      //--- Step 3.  Update flux at each x_{i-1/2,j,k}:
 
       cons.flux(ivx, IDN, k, j, i) = f_half[IDN];
       cons.flux(ivx, ivx, k, j, i) = f_half[IV1];
