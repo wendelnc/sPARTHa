@@ -7,6 +7,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <iomanip>
 
 // Parthenon headers
 #include <parthenon/package.hpp>
@@ -79,26 +81,123 @@ Real HydroHst(MeshData<Real> *md) {
                   (SQR(cons(IB1, k, j, i)) + SQR(cons(IB2, k, j, i)) +
                    SQR(cons(IB3, k, j, i))) *
                   coords.CellVolume(k, j, i);
-          // relative divergence of B error, i.e., L * |div(B)| / |B|
-        } else if (hst == Hst::divb) {
-          Real divb =
-              (cons(IB1, k, j, i + 1) - cons(IB1, k, j, i - 1)) / coords.Dxc<1>(k, j, i) +
-              (cons(IB2, k, j + 1, i) - cons(IB2, k, j - 1, i)) / coords.Dxc<2>(k, j, i);
-          if (three_d) {
-            divb += (cons(IB3, k + 1, j, i) - cons(IB3, k - 1, j, i)) /
-                    coords.Dxc<3>(k, j, i);
-          }
+        
+        ///////////////////////////////////////////////////////////////////////////////////////          
+        // original
+        ///////////////////////////////////////////////////////////////////////////////////////          
 
-          Real abs_b = std::sqrt(SQR(cons(IB1, k, j, i)) + SQR(cons(IB2, k, j, i)) +
+        // relative divergence of B error, i.e., L * |div(B)| / |B|
+        // } else if (hst == Hst::divb) {
+        //   Real divb =
+        //       (cons(IB1, k, j, i + 1) - cons(IB1, k, j, i - 1)) / coords.Dxc<1>(k, j, i) +
+        //       (cons(IB2, k, j + 1, i) - cons(IB2, k, j - 1, i)) / coords.Dxc<2>(k, j, i);
+        //   if (three_d) {
+        //     divb += (cons(IB3, k + 1, j, i) - cons(IB3, k - 1, j, i)) /
+        //             coords.Dxc<3>(k, j, i);
+        //   }
+
+        //   Real abs_b = std::sqrt(SQR(cons(IB1, k, j, i)) + SQR(cons(IB2, k, j, i)) +
+        //                          SQR(cons(IB3, k, j, i)));
+
+        //   lsum += (abs_b != 0) ? 0.5 *
+        //                              (std::sqrt(SQR(coords.Dxc<1>(k, j, i)) +
+        //                                         SQR(coords.Dxc<2>(k, j, i)) +
+        //                                         SQR(coords.Dxc<3>(k, j, i)))) *
+        //                              std::abs(divb) / abs_b * coords.CellVolume(k, j, i)
+        //                        : 0; // Add zero when abs_b ==0
+        // }
+
+        ///////////////////////////////////////////////////////////////////////////////////////          
+
+        } else if (hst == Hst::divb) {
+
+
+          ///////////////////////////////////////////////////////////////////////////////////////
+          // 2nd-order central difference for divergence of B
+          ///////////////////////////////////////////////////////////////////////////////////////
+          
+          // Real divb =
+          //           (cons(IB1, k, j, i + 1) - cons(IB1, k, j, i - 1)) / (2 * coords.Dxc<1>(k, j, i)) +
+          //           (cons(IB2, k, j + 1, i) - cons(IB2, k, j - 1, i)) / (2 * coords.Dxc<2>(k, j, i));
+          
+          // if (three_d) {
+          //   divb += (cons(IB3, k + 1, j, i) - cons(IB3, k - 1, j, i)) / (2 * coords.Dxc<3>(k, j, i));
+          // }
+          
+          ///////////////////////////////////////////////////////////////////////////////////////
+          // 4th-order central difference for divergence of B
+          ///////////////////////////////////////////////////////////////////////////////////////
+          
+          Real divb =
+            (cons(IB1, k, j, i - 2) - 8.0 * cons(IB1, k, j, i - 1) - 
+            cons(IB1, k, j, i + 2) + 8.0 * cons(IB1, k, j, i + 1)) /
+            (12.0 * coords.Dxc<1>(k, j, i)) +
+            
+            (cons(IB2, k, j - 2, i) - 8.0 * cons(IB2, k, j - 1, i) -
+            cons(IB2, k, j + 2, i) + 8.0 * cons(IB2, k, j + 1, i)) /
+            (12.0 * coords.Dxc<2>(k, j, i));
+
+          if (three_d) {
+            divb += (cons(IB3, k - 2, j, i) - 8.0 * cons(IB3, k - 1, j, i) - 
+                    cons(IB3, k + 2, j, i) + 8.0 * cons(IB3, k + 1, j, i)) /
+                    (12.0 * coords.Dxc<3>(k, j, i));
+          }
+        
+          ///////////////////////////////////////////////////////////////////////////////////////
+          // 6th-order central difference for divergence of B
+          ///////////////////////////////////////////////////////////////////////////////////////
+          
+          // Real divb =
+          //   (cons(IB1, k, j, i + 3) - 9.0 * cons(IB1, k, j, i + 2) + 45.0 * cons(IB1, k, j, i + 1) - 
+          //   cons(IB1, k, j, i - 3) + 9.0 * cons(IB1, k, j, i - 2) - 45.0 * cons(IB1, k, j, i - 1)) /
+          //   (60.0 * coords.Dxc<1>(k, j, i)) +
+
+          //   (cons(IB2, k, j + 3, i) - 9.0 * cons(IB2, k, j + 2, i) + 45.0 * cons(IB2, k, j + 1, i) - 
+          //   cons(IB2, k, j - 3, i) + 9.0 * cons(IB2, k, j - 2, i) - 45.0 * cons(IB2, k, j - 1, i)) /
+          //   (60.0 * coords.Dxc<2>(k, j, i));
+
+          // if (three_d) {
+          //   divb += (cons(IB3, k + 3, j, i) - 9.0 * cons(IB3, k + 2, j, i) + 45.0 * cons(IB3, k + 1, j, i) - 
+          //           cons(IB3, k - 3, j, i) + 9.0 * cons(IB3, k - 2, j, i) - 45.0 * cons(IB3, k - 1, j, i)) /
+          //           (60.0 * coords.Dxc<3>(k, j, i));
+          // }
+
+          ///////////////////////////////////////////////////////////////////////////////////////
+          // 8th-order central difference for divergence of B
+          ///////////////////////////////////////////////////////////////////////////////////////
+          
+          // Real divb =
+          //   (3.0 * cons(IB1,k,j,i-4) - 32.0 * cons(IB1,k,j,i-3) + 168.0 * cons(IB1,k,j,i-2) - 672.0 * cons(IB1,k,j,i-1) -
+          //   3.0 * cons(IB1,k,j,i+4) + 32.0 * cons(IB1,k,j,i+3) - 168.0 * cons(IB1,k,j,i+2) + 672.0 * cons(IB1,k,j,i+1)) / 
+          //   (840.0 * coords.Dxc<1>(k, j, i)) +
+
+          //   (3.0 * cons(IB2,k,j-4,i) - 32.0 * cons(IB2,k,j-3,i) + 168.0 * cons(IB2,k,j-2,i) - 672.0 * cons(IB2,k,j-1,i) -
+          //   3.0 * cons(IB2,k,j+4,i) + 32.0 * cons(IB2,k,j+3,i) - 168.0 * cons(IB2,k,j+2,i) + 672.0 * cons(IB2,k,j+1,i)) / 
+          //   (840.0 * coords.Dxc<2>(k, j, i));
+
+          // if (three_d) {
+          //   divb += (3.0 * cons(IB3,k-4,j,i) - 32.0 * cons(IB3,k-3,j,i) + 168.0 * cons(IB3,k-2,j,i) - 672.0 * cons(IB3,k-1,j,i) -
+          //           3.0 * cons(IB3,k+4,j,i) + 32.0 * cons(IB3,k+3,j,i) - 168.0 * cons(IB3,k+2,j,i) + 672.0 * cons(IB3,k+1,j,i)) / 
+          //           (840.0 * coords.Dxc<3>(k, j, i));
+          // }
+
+          ///////////////////////////////////////////////////////////////////////////////////////          
+
+          Real abs_b = std::sqrt(SQR(cons(IB1, k, j, i)) +
+                                 SQR(cons(IB2, k, j, i)) +
                                  SQR(cons(IB3, k, j, i)));
 
-          lsum += (abs_b != 0) ? 0.5 *
-                                     (std::sqrt(SQR(coords.Dxc<1>(k, j, i)) +
-                                                SQR(coords.Dxc<2>(k, j, i)) +
-                                                SQR(coords.Dxc<3>(k, j, i)))) *
-                                     std::abs(divb) / abs_b * coords.CellVolume(k, j, i)
-                               : 0; // Add zero when abs_b ==0
-        }
+          lsum += (abs_b != 0)
+                    ?  (std::sqrt(SQR(coords.Dxc<1>(k, j, i)) +
+                                  SQR(coords.Dxc<2>(k, j, i)) +
+                                  SQR(coords.Dxc<3>(k, j, i)))) *
+                                  std::abs(divb) / abs_b * coords.CellVolume(k, j, i)
+                    : 0;  // Add zero when abs_b == 0
+        }        
+
+        ///////////////////////////////////////////////////////////////////////////////////////          
+        // end
+        ///////////////////////////////////////////////////////////////////////////////////////          
 
       },
       sum);
@@ -161,7 +260,7 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
   const auto recon_str = pin->GetOrAddString("hydro", "reconstruction", "weno3");
   auto recon = Reconstruction::undefined;
 
-  int recon_need_nghost = 3; // largest number for the choices below
+  int recon_need_nghost = 5; // largest number for the choices below
 
   if (recon_str == "weno3") {
     recon = Reconstruction::weno3;
@@ -169,10 +268,16 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
   } else if (recon_str == "weno5") {
     recon = Reconstruction::weno5;
     recon_need_nghost = 3;
+  } else if (recon_str == "weno7") {
+    recon = Reconstruction::weno7;
+    recon_need_nghost = 4;
+  } else if (recon_str == "weno9") {
+    recon = Reconstruction::weno9;
+    recon_need_nghost = 5;
   } else if (recon_str == "none") {
     recon = Reconstruction::none;
   } else {
-    PARTHENON_FAIL("AthenaPK hydro: Unknown riemann solver.");
+    PARTHENON_FAIL("Spartha: Unknown Reconstruction Method.");
   }
 
   pkg->AddParam<>("recon", recon);
@@ -185,8 +290,12 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
   // to reduce size.
   add_flux_fun<Fluid::euler, Reconstruction::weno3>(flux_functions);
   add_flux_fun<Fluid::euler, Reconstruction::weno5>(flux_functions);
-  // add_flux_fun<Fluid::mhd, Reconstruction::weno3>(flux_functions);
+  add_flux_fun<Fluid::euler, Reconstruction::weno7>(flux_functions);
+  add_flux_fun<Fluid::euler, Reconstruction::weno9>(flux_functions);
+  add_flux_fun<Fluid::mhd, Reconstruction::weno3>(flux_functions);
   add_flux_fun<Fluid::mhd, Reconstruction::weno5>(flux_functions);
+  add_flux_fun<Fluid::mhd, Reconstruction::weno7>(flux_functions);
+  add_flux_fun<Fluid::mhd, Reconstruction::weno9>(flux_functions);
 
   // flux used in all stages expect the first. First stage is set below based on integr.
   FluxFun_t *flux_other_stage = nullptr;
@@ -237,20 +346,26 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
   pkg->AddParam<FluxFun_t *>("flux_first_stage", flux_first_stage);
   pkg->AddParam<FluxFun_t *>("flux_other_stage", flux_other_stage);
 
-  Real dfloor = pin->GetOrAddReal("hydro", "dfloor", std::sqrt(1024 * float_min));
-  Real pfloor = pin->GetOrAddReal("hydro", "pfloor", std::sqrt(1024 * float_min));
+  Real dfloor = pin->GetOrAddReal("hydro", "dfloor", -1.0);
+  Real pfloor = pin->GetOrAddReal("hydro", "pfloor", -1.0);
+  Real efloor = pin->GetOrAddReal("hydro", "efloor", -1.0);
+
+  Real vceil =
+        pin->GetOrAddReal("hydro", "vceil", std::numeric_limits<Real>::infinity());
+  Real eceil =
+        pin->GetOrAddReal("hydro", "eceil", std::numeric_limits<Real>::infinity());
 
   Real gamma = pin->GetReal("hydro", "gamma");
   pkg->AddParam<>("AdiabaticIndex", gamma);
 
   
   if (fluid == Fluid::euler) {
-    AdiabaticHydroEOS eos(pfloor, dfloor, gamma);
+    AdiabaticHydroEOS eos(pfloor, dfloor, efloor, vceil, eceil, gamma);
     pkg->AddParam<>("eos", eos);
     pkg->FillDerivedMesh = ConsToPrim<AdiabaticHydroEOS>;
     pkg->EstimateTimestepMesh = EstimateTimestep<Fluid::euler>;
   } else if (fluid == Fluid::mhd) {
-    AdiabaticMHDEOS eos(pfloor, dfloor, gamma);
+    AdiabaticMHDEOS eos(pfloor, dfloor, efloor, vceil, eceil, gamma);
     pkg->AddParam<>("eos", eos);
     pkg->FillDerivedMesh = ConsToPrim<AdiabaticMHDEOS>;
     pkg->EstimateTimestepMesh = EstimateTimestep<Fluid::mhd>;
@@ -517,12 +632,12 @@ TaskStatus CalculateFluxes(std::shared_ptr<MeshData<Real>> &md) {
         
       });
   }
-
+  
   //--------------------------------------------------------------------------------------
   // k-direction
   if (pmb->pmy_mesh->ndim >= 3) {
 
-      parthenon::par_for_outer(
+    parthenon::par_for_outer(
       DEFAULT_OUTER_LOOP_PATTERN, "x3 flux", DevExecSpace(), scratch_size_in_bytes,
       scratch_level, 0, cons_pack.GetDim(5) - 1, kl, ku, jl, ju,
       KOKKOS_LAMBDA(parthenon::team_mbr_t member, const int b, const int k, const int j) {
