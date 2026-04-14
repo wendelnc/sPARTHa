@@ -24,10 +24,12 @@ template <Fluid fluid, Reconstruction recon>
 struct Reconstruct;
 
 // now include the specializations
+#include "hydro_llf.hpp"
 #include "hydro_weno3.hpp"
 #include "hydro_weno5.hpp"
 #include "hydro_weno7.hpp"
 #include "hydro_weno9.hpp"
+#include "mhd_llf.hpp"
 #include "mhd_weno3.hpp"
 #include "mhd_weno5.hpp"
 #include "mhd_weno7.hpp"

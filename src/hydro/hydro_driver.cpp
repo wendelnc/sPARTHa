@@ -55,24 +55,28 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
   for (int i = 0; i < blocks.size(); i++) {
     auto &pmb = blocks[i];
     auto &tl = async_region_1[i];
-    // Using "base" as u0, which already exists (and returned by using plain Get())
     auto &u0 = pmb->meshblock_data.Get();
 
-    // Create meshblock data for register u1. This is a no-op if u1 already exists.
+    // init u1, see (11) in Athena++ method paper
     if (stage == 1) {
       pmb->meshblock_data.Add("u1", u0);
 
-      // init u1, see (11) in Athena++ method paper
       auto &u1 = pmb->meshblock_data.Get("u1");
       auto init_u1 = tl.AddTask(
           none,
-          [](MeshBlockData<Real> *u0, MeshBlockData<Real> *u1) {
+          [](MeshBlockData<Real> *u0, MeshBlockData<Real> *u1, bool copy_prim) {
             u1->Get("cons").data.DeepCopy(u0->Get("cons").data);
+            if (copy_prim) {
+              u1->Get("prim").data.DeepCopy(u0->Get("prim").data);
+            }
             return TaskStatus::complete;
           },
-          u0.get(), u1.get());
+          // First order flux correction needs the original prim variables in the
+          // during the correction.          
+          u0.get(), u1.get(), hydro_pkg->Param<bool>("first_order_flux_correct"));
     }
   }
+
   const int num_partitions = pmesh->DefaultNumPartitions();
 
   // note that task within this region that contains one tasklist per pack
@@ -81,6 +85,8 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
   for (int i = 0; i < num_partitions; i++) {
     auto &tl = single_tasklist_per_pack_region[i];
     auto &mu0 = pmesh->mesh_data.GetOrAdd("base", i);
+    auto &mu1 = pmesh->mesh_data.GetOrAdd("u1", i);
+
     const auto any = parthenon::BoundaryType::any;
   
     auto start_bnd = tl.AddTask(none, parthenon::StartReceiveBoundBufs<any>, mu0);
@@ -91,15 +97,28 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
     FluxFun_t *calc_flux_fun = hydro_pkg->Param<FluxFun_t *>(flux_str);
     auto calc_flux = tl.AddTask(none, calc_flux_fun, mu0);
 
+    // TODO(pgrete) figure out what to do about the sources from the first stage
+    // that are potentially disregarded when the (m)hd fluxes are corrected in the second
+    // stage.
+    TaskID first_order_flux_correct = calc_flux;
+    if (hydro_pkg->Param<bool>("first_order_flux_correct")) {
+      auto *first_order_flux_correct_fun =
+          hydro_pkg->Param<FirstOrderFluxCorrectFun_t *>("first_order_flux_correct_fun");
+      first_order_flux_correct =
+          tl.AddTask(calc_flux, first_order_flux_correct_fun, mu0.get(), mu1.get(),
+                     integrator->gam0[stage - 1], integrator->gam1[stage - 1],
+                     integrator->beta[stage - 1] * integrator->dt);
+    }
+
     // Unstaggered Constrained Transport Step
     Fluid fluid = hydro_pkg->Param<Fluid>("fluid");
     auto pmb = mu0->GetBlockData(0)->GetBlockPointer();
-    auto calc_mp_flux = calc_flux;
+    auto calc_mp_flux = first_order_flux_correct;
     if (fluid == Fluid::mhd) {
       if (pmb->pmy_mesh->ndim == 2) {
-        auto calc_mp_flux = tl.AddTask(calc_flux, CalculateHJFluxes2D, mu0); // 2D Magnetic Potential
+        auto calc_mp_flux = tl.AddTask(first_order_flux_correct, CalculateHJFluxes2D, mu0); // 2D Magnetic Potential
       } else if (pmb->pmy_mesh->ndim == 3) {
-        auto calc_mp_flux = tl.AddTask(calc_flux, CalculateHJFluxes3D, mu0, integrator->dt); // 3D Magnetic Potential
+        auto calc_mp_flux = tl.AddTask(first_order_flux_correct, CalculateHJFluxes3D, mu0, integrator->dt); // 3D Magnetic Potential
       }
     }
 
@@ -108,7 +127,6 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
     auto recv_flx = tl.AddTask(start_flxcor_recv, parthenon::ReceiveFluxCorrections, mu0);
     auto set_flx  = tl.AddTask(recv_flx | calc_mp_flux, parthenon::SetFluxCorrections, mu0);
 
-    auto &mu1 = pmesh->mesh_data.GetOrAdd("u1", i);
     // Compute the divergence of fluxes of conserved variables
     auto update = tl.AddTask(
         set_flx, parthenon::Update::UpdateWithFluxDivergenceCA<MeshData<Real>>, mu0.get(),

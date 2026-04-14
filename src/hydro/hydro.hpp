@@ -43,6 +43,11 @@ TaskStatus CalculateFluxes(std::shared_ptr<MeshData<Real>> &md);
 using FluxFun_t =
     decltype(CalculateFluxes<Fluid::euler, Reconstruction::weno3>);
 
+template <Fluid fluid>
+TaskStatus FirstOrderFluxCorrect(MeshData<Real> *u0_data, MeshData<Real> *u1_data,
+                                 const Real gam0, const Real gam1, const Real beta_dt);
+using FirstOrderFluxCorrectFun_t = decltype(FirstOrderFluxCorrect<Fluid::euler>);
+    
 using FluxFunKey_t = std::tuple<Fluid, Reconstruction>;
 
 // Add flux function pointer to map containing all compiled in flux functions

@@ -111,7 +111,6 @@ Real HydroHst(MeshData<Real> *md) {
 
         } else if (hst == Hst::divb) {
 
-
           ///////////////////////////////////////////////////////////////////////////////////////
           // 2nd-order central difference for divergence of B
           ///////////////////////////////////////////////////////////////////////////////////////
@@ -339,12 +338,26 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
   } else if (integrator_str == "rk3") {
     integrator = Integrator::rk3;
   } else if (integrator_str == "vl2") {
-    integrator = Integrator::vl2;
+    integrator = Integrator::vl2; 
   }
 
   pkg->AddParam<>("integrator", integrator);
   pkg->AddParam<FluxFun_t *>("flux_first_stage", flux_first_stage);
   pkg->AddParam<FluxFun_t *>("flux_other_stage", flux_other_stage);
+
+  auto first_order_flux_correct =
+      pin->GetOrAddBoolean("hydro", "first_order_flux_correct", false);
+  pkg->AddParam<>("first_order_flux_correct", first_order_flux_correct);
+  if (first_order_flux_correct) {
+    if (fluid == Fluid::euler) {
+      pkg->AddParam<FirstOrderFluxCorrectFun_t *>("first_order_flux_correct_fun",
+                                                  FirstOrderFluxCorrect<Fluid::euler>);
+      // std::cout << "CA OUTPUT: Works in hydro/Initialize" << std::endl;
+    } else if (fluid == Fluid::mhd) {
+      pkg->AddParam<FirstOrderFluxCorrectFun_t *>("first_order_flux_correct_fun",
+                                                  FirstOrderFluxCorrect<Fluid::mhd>);
+    }
+  }
 
   Real dfloor = pin->GetOrAddReal("hydro", "dfloor", -1.0);
   Real pfloor = pin->GetOrAddReal("hydro", "pfloor", -1.0);
@@ -649,6 +662,138 @@ TaskStatus CalculateFluxes(std::shared_ptr<MeshData<Real>> &md) {
 
       });
   }
+
+  return TaskStatus::complete;
+}
+
+// Apply first order flux correction, i.e., use first order reconstruction and a
+// diffusive LLF Riemann solver if a negative density or energy density is expected.
+// The current implementation is computationally not the most efficient one, but works
+// for all standard integrators (rk1, rk2, rk3, and vl) and with and without AMR.
+// In principle, without AMR one could directly use the results from the actual
+// flux divergence call.
+// However, with AMR (and coarse/fine flux correction) we need to correct the local
+// fluxes first before calling coarse/fine flux correction.
+// In addition, it may be enough to call first order flux correction once at the
+// final stage (rather than at every stage as right row).
+// However, this'd require an additional register to store the initial state and
+// we should first evaluate where the tradeoff between extra computational costs
+// (multiple calls) versus extra memory usage is.
+template <Fluid fluid>
+TaskStatus FirstOrderFluxCorrect(MeshData<Real> *u0_data, MeshData<Real> *u1_data,
+                                 const Real gam0_, const Real gam1_,
+                                 const Real beta_dt_) {
+  // Work around for CUDA <=11.6
+  const Real gam0 = gam0_;
+  const Real gam1 = gam1_;
+  const Real beta_dt = beta_dt_;
+  
+  auto pmb = u0_data->GetBlockData(0)->GetBlockPointer();
+  IndexRange ib = pmb->cellbounds.GetBoundsI(IndexDomain::interior);
+  IndexRange jb = pmb->cellbounds.GetBoundsJ(IndexDomain::interior);
+  IndexRange kb = pmb->cellbounds.GetBoundsK(IndexDomain::interior);
+
+  std::vector<parthenon::MetadataFlag> flags_ind({Metadata::Independent});
+  auto u0_cons_pack = u0_data->PackVariablesAndFluxes(flags_ind);
+  auto const &u0_prim_pack = u0_data->PackVariables(std::vector<std::string>{"prim"});
+  auto u1_cons_pack = u1_data->PackVariablesAndFluxes(flags_ind);
+  auto pkg = pmb->packages.Get("Hydro");
+
+  const auto &eos =
+      pkg->Param<typename std::conditional<fluid == Fluid::euler, AdiabaticHydroEOS,
+                                           AdiabaticMHDEOS>::type>("eos");
+
+
+  const int ndim = pmb->pmy_mesh->ndim;
+
+  constexpr auto NVAR = GetNVars<fluid>();
+
+  auto reconstruct = Reconstruct<fluid, Reconstruction::llf>();
+
+  std::int64_t num_corrected, num_need_floor;
+  // Potentially need multiple attempts as flux correction corrects 6 (in 3D) fluxes
+  // of a single cell at the same time. So the neighboring cells need to be rechecked with
+  // the corrected fluxes as the corrected fluxes in one cell may result in the need to
+  // correct all the fluxes of an originally "good" neighboring cell.
+  size_t num_attempts = 0;
+  do {
+    num_corrected = 0;
+
+    Kokkos::parallel_reduce(
+        "FirstOrderFluxCorrect",
+        Kokkos::MDRangePolicy<Kokkos::Rank<4>>(
+            DevExecSpace(), {0, kb.s, jb.s, ib.s},
+            {u0_cons_pack.GetDim(5), kb.e + 1, jb.e + 1, ib.e + 1},
+            {1, 1, 1, ib.e + 1 - ib.s}),
+        KOKKOS_LAMBDA(const int b, const int k, const int j, const int i,
+                      std::int64_t &lnum_corrected, std::int64_t &lnum_need_floor) {
+          const auto &coords = u0_cons_pack.GetCoords(b);
+          const auto &u0_prim = u0_prim_pack(b);
+          auto &u0_cons = u0_cons_pack(b);
+
+          // In principle, the u_cons.fluxes could be updated in parallel by a
+          // different thread resulting in a race conditon here. However, if the
+          // fluxes of a cell have been updated (anywhere) then the entire kernel will
+          // be called again anyway, and, at that point the already fixed
+          // u0_cons.fluxes will automaticlly be used here.
+          Real new_cons[NVAR];
+          for (auto v = 0; v < NVAR; v++) {
+            new_cons[v] =
+                gam0 * u0_cons(v, k, j, i) + gam1 * u1_cons_pack(b, v, k, j, i) +
+                beta_dt *
+                    parthenon::Update::FluxDivHelper(v, k, j, i, ndim, coords, u0_cons);
+          }
+
+          // no need to include gamma - 1 as we only care for negative values
+          auto new_p =
+              new_cons[IEN] -
+              0.5 * (SQR(new_cons[IM1]) + SQR(new_cons[IM2]) + SQR(new_cons[IM3])) /
+                  new_cons[IDN];
+          if constexpr (fluid == Fluid::mhd) {
+            new_p -= 0.5 * (SQR(new_cons[IB1]) + SQR(new_cons[IB2]) + SQR(new_cons[IB3]));
+          }
+          // no correction required
+          if (new_cons[IDN] > 0.0 && new_p > 0.0) {
+            return;
+          }
+          // if already tried 3 times and only pressure is negative, then we'll rely
+          // on the pressure floor during ConsToPrim conversion
+          if (num_attempts > 2 && new_cons[IDN] > 0.0 && new_p < 0.0) {
+            lnum_need_floor += 1;
+            return;
+          }
+          // In principle, there could be a racecondion as this loop goes over all
+          // k,j,i and we updating the i+1 flux here. However, the results are
+          // idential because u0_prim is never updated in this kernel so we don't
+          // worry about it.
+          // TODO(pgrete) as we need to keep the function signature idential for now
+          // (due to Cuda compiler bug) we could potentially template these function
+          // and get rid of the `if constexpr`
+
+          reconstruct.Solve(eos, k, j, i,     IV1, u0_prim, u0_cons);
+          reconstruct.Solve(eos, k, j, i + 1, IV1, u0_prim, u0_cons);
+
+          if (ndim >= 2) {
+            reconstruct.Solve(eos, k, j,     i, IV2, u0_prim, u0_cons);
+            reconstruct.Solve(eos, k, j + 1, i, IV2, u0_prim, u0_cons);
+          }
+          if (ndim >= 3) {
+            reconstruct.Solve(eos, k,     j, i, IV3, u0_prim, u0_cons);
+            reconstruct.Solve(eos, k + 1, j, i, IV3, u0_prim, u0_cons);
+          }
+          lnum_corrected += 1;
+        },
+        Kokkos::Sum<std::int64_t>(num_corrected),
+        Kokkos::Sum<std::int64_t>(num_need_floor));
+    // TODO(pgrete) make this optional and global (potentially store values in Params)
+    if (num_corrected > 0) {
+    std::cout << "[" << parthenon::Globals::my_rank << "] Attempt: " <<
+    num_attempts
+              << " Corrected (center): " << num_corrected
+              << " Failed (will rely on floor): " << num_need_floor << std::endl;
+    }
+    num_attempts += 1;
+  } while (num_corrected > 0 && num_attempts < 4);
 
   return TaskStatus::complete;
 }

@@ -14,7 +14,7 @@
 KOKKOS_INLINE_FUNCTION
 Real WENO3(const Real &q_im1, const Real &q_i, const Real &q_ip1) {
 
-    const Real epsilon = 1E-10;
+    const Real epsilon = 1E-20;
 
     Real beta[2]; // (2.62) 
     beta[0] = SQR(q_ip1 - q_i);
@@ -46,7 +46,7 @@ Real WENO3(const Real &q_im1, const Real &q_i, const Real &q_ip1) {
 KOKKOS_INLINE_FUNCTION
 Real WENO5(const Real &q_im2, const Real &q_im1, const Real &q_i, const Real &q_ip1, const Real &q_ip2) {
     
-    const Real epsilon = 1E-10;
+    const Real epsilon = 1E-20;
 
     Real beta[3]; // (2.63) 
     beta[0] = (13.0/12.0)*SQR(q_i - 2*q_ip1 + q_ip2) + (1.0/4.0)*SQR(3*q_i - 4*q_ip1 + q_ip2);
@@ -58,9 +58,9 @@ Real WENO5(const Real &q_im2, const Real &q_im1, const Real &q_i, const Real &q_
     indicator[1] = 1 / SQR(epsilon + beta[1]);
     indicator[2] = 1 / SQR(epsilon + beta[2]);
 
-    // indicator[0] = 1.0 / std::pow(epsilon + beta[0], 3);
-    // indicator[1] = 1.0 / std::pow(epsilon + beta[1], 3);
-    // indicator[2] = 1.0 / std::pow(epsilon + beta[2], 3);
+    // indicator[0] = 1.0 / std::pow(epsilon + beta[0], 2);
+    // indicator[1] = 1.0 / std::pow(epsilon + beta[1], 2);
+    // indicator[2] = 1.0 / std::pow(epsilon + beta[2], 2);
 
     // compute qL_ip1
     Real f[3]; // polynomial based on constants c_{r,j} in Table 2.1 
@@ -86,7 +86,7 @@ Real WENO5(const Real &q_im2, const Real &q_im1, const Real &q_i, const Real &q_
 KOKKOS_INLINE_FUNCTION
 Real WENO7(const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &v_i, const Real &v_ip1, const Real &v_ip2, const Real &v_ip3) {
     
-    const Real epsilon = 1E-10;
+    const Real epsilon = 1E-20;
 
     Real beta[4]; // flipped from MATLAB code where beta[0] is beta_3
     // beta[0] = (15943*v_i*v_i)/960 - (36709*v_i*v_ip1)/480 + (28429*v_i*v_ip2)/480 - (7663*v_i*v_ip3)/480 + (86447*v_ip1*v_ip1)/960 - (68407*v_ip1*v_ip2)/480 + (6223*v_ip1*v_ip3)/160 + (55247*v_ip2*v_ip2)/960 - (15269*v_ip2*v_ip3)/480 + (1421*v_ip3*v_ip3)/320;
@@ -100,17 +100,16 @@ Real WENO7(const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &
     beta[2] = v_im2*( 267*v_im2 - 1642*v_im1 + 1602*v_i   -  494*v_ip1 ) + v_im1*( 2843*v_im1 -  5966*v_i   + 1922*v_ip1 ) +   v_i*( 3443*v_i   - 2522*v_ip1 ) +  547*v_ip1*v_ip1;
     beta[3] = v_im3*( 547*v_im3 - 3882*v_im2 + 4642*v_im1 - 1854*v_i   ) + v_im2*( 7043*v_im2 - 17246*v_im1 + 7042*v_i   ) + v_im1*(11003*v_im1 - 9402*v_i   ) + 2107*v_i*v_i;
    
-
     Real indicator[4]; // fraction part of (2.59) 
-    indicator[0] = 1 / SQR(epsilon + beta[0]);
-    indicator[1] = 1 / SQR(epsilon + beta[1]);
-    indicator[2] = 1 / SQR(epsilon + beta[2]);
-    indicator[3] = 1 / SQR(epsilon + beta[3]);
+    // indicator[0] = 1 / SQR(epsilon + beta[0]);
+    // indicator[1] = 1 / SQR(epsilon + beta[1]);
+    // indicator[2] = 1 / SQR(epsilon + beta[2]);
+    // indicator[3] = 1 / SQR(epsilon + beta[3]);
 
-    // indicator[0] = 1.0 / std::pow(epsilon + beta[0], 4);
-    // indicator[1] = 1.0 / std::pow(epsilon + beta[1], 4);
-    // indicator[2] = 1.0 / std::pow(epsilon + beta[2], 4);
-    // indicator[3] = 1.0 / std::pow(epsilon + beta[3], 4);
+    indicator[0] = 1.0 / std::pow(epsilon + beta[0], 4);
+    indicator[1] = 1.0 / std::pow(epsilon + beta[1], 4);
+    indicator[2] = 1.0 / std::pow(epsilon + beta[2], 4);
+    indicator[3] = 1.0 / std::pow(epsilon + beta[3], 4);
 
     // compute qL_ip1
     Real f[4]; // polynomial based on constants c_{r,j} in Table 2.1 
@@ -124,7 +123,7 @@ Real WENO7(const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &
     alpha[0] = indicator[0] *  4.0 / 35.0;
     alpha[1] = indicator[1] * 18.0 / 35.0;
     alpha[2] = indicator[2] * 12.0 / 35.0;
-    alpha[3] = indicator[3] *  1.0 / 35.0;
+    alpha[3] = indicator[3] *  1.0 / 35.0;   
 
     Real alpha_sum = 12.0 * (alpha[0] + alpha[1] + alpha[2] + alpha[3]);
 
@@ -138,7 +137,7 @@ Real WENO7(const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &
 KOKKOS_INLINE_FUNCTION
 Real WENO9(const Real &v_im4, const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &v_i, const Real &v_ip1, const Real &v_ip2, const Real &v_ip3, const Real &v_ip4) {
     
-    const Real epsilon = 1E-10;
+    const Real epsilon = 1E-20;
 
     Real beta[5]; // flipped from MATLAB code where beta[0] is beta_4
     // beta[0] = (3693653*v_i*v_i)/80640 - (2834627*v_i*v_ip1)/10080 + (2246389*v_i*v_ip2)/6720 - (1850819*v_i*v_ip3)/10080 + (1569797*v_i*v_ip4)/40320 + (8907527*v_ip1*v_ip1)/20160 - (3594209*v_ip1*v_ip2)/3360 + (5988821*v_ip1*v_ip3)/10080 - (639547*v_ip1*v_ip4)/5040  + (551713*v_ip2*v_ip2)/840   - (824853*v_ip2*v_ip3)/1120  + (1063739*v_ip2*v_ip4)/6720 + (4190927*v_ip3*v_ip3)/20160 - (226313*v_ip3*v_ip4)/2520  + (785153*v_ip4*v_ip4)/80640;  
@@ -154,18 +153,17 @@ Real WENO9(const Real &v_im4, const Real &v_im3, const Real &v_im2, const Real &
     beta[4] = v_im4*( 22658*v_im4 - 208501*v_im3 + 364863*v_im2 - 288007*v_im1 + 86329*v_i)   + v_im3*( 482963*v_im3 - 1704396*v_im2 + 1358458*v_im1 - 411487*v_i)   + v_im2*(1521393*v_im2 - 2462076*v_im1 + 758823*v_i)   + v_im1*(1020563*v_im1 - 649501*v_i)   + 107918*v_i*v_i;
     
     Real indicator[5]; // fraction part of (2.59) 
-    indicator[0] = 1 / SQR(epsilon + beta[0]);
-    indicator[1] = 1 / SQR(epsilon + beta[1]);
-    indicator[2] = 1 / SQR(epsilon + beta[2]);
-    indicator[3] = 1 / SQR(epsilon + beta[3]);
-    indicator[4] = 1 / SQR(epsilon + beta[4]);
+    // indicator[0] = 1 / SQR(epsilon + beta[0]);
+    // indicator[1] = 1 / SQR(epsilon + beta[1]);
+    // indicator[2] = 1 / SQR(epsilon + beta[2]);
+    // indicator[3] = 1 / SQR(epsilon + beta[3]);
+    // indicator[4] = 1 / SQR(epsilon + beta[4]);
 
-    // indicator[0] = 1.0 / std::pow(epsilon + beta[0], 4);
-    // indicator[1] = 1.0 / std::pow(epsilon + beta[1], 4);
-    // indicator[2] = 1.0 / std::pow(epsilon + beta[2], 4);
-    // indicator[3] = 1.0 / std::pow(epsilon + beta[3], 4);
-    // indicator[4] = 1.0 / std::pow(epsilon + beta[4], 4);
-
+    indicator[0] = 1.0 / std::pow(epsilon + beta[0], 4);
+    indicator[1] = 1.0 / std::pow(epsilon + beta[1], 4);
+    indicator[2] = 1.0 / std::pow(epsilon + beta[2], 4);
+    indicator[3] = 1.0 / std::pow(epsilon + beta[3], 4);
+    indicator[4] = 1.0 / std::pow(epsilon + beta[4], 4);
 
     // compute qL_ip1
     Real f[5]; // polynomial based on constants c_{r,j} in Table 2.1 
