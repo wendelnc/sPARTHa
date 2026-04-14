@@ -74,6 +74,9 @@ TaskStatus CalculateHJFluxes2D(std::shared_ptr<MeshData<Real>> &md) {
     Real max_vex = std::max({std::abs(prim(IV1,k,j,i-3)),std::abs(prim(IV1,k,j,i-2)),std::abs(prim(IV1,k,j,i-1)),std::abs(prim(IV1,k,j,i)),std::abs(prim(IV1,k,j,i+1)),std::abs(prim(IV1,k,j,i+2)),std::abs(prim(IV1,k,j,i+3))});
     Real max_vey = std::max({std::abs(prim(IV2,k,j-3,i)),std::abs(prim(IV2,k,j-2,i)),std::abs(prim(IV2,k,j-1,i)),std::abs(prim(IV2,k,j,i)),std::abs(prim(IV2,k,j+1,i)),std::abs(prim(IV2,k,j+2,i)),std::abs(prim(IV2,k,j+3,i))});
 
+    max_vex = 1.1 * max_vex;
+    max_vey = 1.1 * max_vey;
+
     Real A_z = (0.5 * prim(IV1,k,j,i) * (Az_xp + Az_xm)) + (0.5 * prim(IV2,k,j,i) * (Az_yp + Az_ym)) - (0.5 * max_vex * (Az_xp - Az_xm)) - (0.5 * max_vey * (Az_yp - Az_ym));
 
     cons.flux(IV1, IA3, k, j, i) = A_z;
@@ -156,31 +159,31 @@ TaskStatus CalculateHJFluxes3D(std::shared_ptr<MeshData<Real>> &md, const Real d
     auto dy = cons.GetCoords().Dxc<X2DIR>(k, j, i);
     auto dz = cons.GetCoords().Dxc<X3DIR>(k, j, i);
 
-    Real max_vex = 1e-15;
-    Real max_vey = 1e-15;
-    Real max_vez = 1e-15;
+    // Real max_vex = 1e-15;
+    // Real max_vey = 1e-15;
+    // Real max_vez = 1e-15;
 
-    for (int dk = -3; dk <= 3; ++dk) {
-      for (int dj = -3; dj <= 3; ++dj) {
-        for (int di = -3; di <= 3; ++di) {
-          const int ii = i + di;
-          const int jj = j + dj;
-          const int kk = k + dk;
-          max_vex = std::max(max_vex, std::abs(prim(IV1, kk, jj, ii)));
-          max_vey = std::max(max_vey, std::abs(prim(IV2, kk, jj, ii)));
-          max_vez = std::max(max_vez, std::abs(prim(IV3, kk, jj, ii)));
-        }
-      }
-    }
+    // for (int dk = -3; dk <= 3; ++dk) {
+    //   for (int dj = -3; dj <= 3; ++dj) {
+    //     for (int di = -3; di <= 3; ++di) {
+    //       const int ii = i + di;
+    //       const int jj = j + dj;
+    //       const int kk = k + dk;
+    //       max_vex = std::max(max_vex, std::abs(prim(IV1, kk, jj, ii)));
+    //       max_vey = std::max(max_vey, std::abs(prim(IV2, kk, jj, ii)));
+    //       max_vez = std::max(max_vez, std::abs(prim(IV3, kk, jj, ii)));
+    //     }
+    //   }
+    // }
 
-    max_vex = 1.1 * max_vex;
-    max_vey = 1.1 * max_vey;
-    max_vez = 1.1 * max_vez;
+    // max_vex = 1.1 * max_vex;
+    // max_vey = 1.1 * max_vey;
+    // max_vez = 1.1 * max_vez;
 
     //--------------------------------------------------------------------------------------
     // x direction
 
-    // Real max_vex = std::max({std::abs(prim(IV1,k,j,i-3)),std::abs(prim(IV1,k,j,i-2)),std::abs(prim(IV1,k,j,i-1)),std::abs(prim(IV1,k,j,i)),std::abs(prim(IV1,k,j,i+1)),std::abs(prim(IV1,k,j,i+2)),std::abs(prim(IV1,k,j,i+3))});
+    Real max_vex = std::max({std::abs(prim(IV1,k,j,i-3)),std::abs(prim(IV1,k,j,i-2)),std::abs(prim(IV1,k,j,i-1)),std::abs(prim(IV1,k,j,i)),std::abs(prim(IV1,k,j,i+1)),std::abs(prim(IV1,k,j,i+2)),std::abs(prim(IV1,k,j,i+3))});
 
     Real Ax_xp, Ax_xm; // A^{x+}_{xijk} and A^{x-}_{xijk}
     HJ_FLUX(Ax_xp,Ax_xm,cons(IA1,k,j,i-3),cons(IA1,k,j,i-2),cons(IA1,k,j,i-1),cons(IA1,k,j,i),cons(IA1,k,j,i+1),cons(IA1,k,j,i+2),cons(IA1,k,j,i+3),dx);
@@ -198,7 +201,7 @@ TaskStatus CalculateHJFluxes3D(std::shared_ptr<MeshData<Real>> &md, const Real d
     //--------------------------------------------------------------------------------------
     // y direction   
     
-    // Real max_vey = std::max({std::abs(prim(IV2,k,j-3,i)),std::abs(prim(IV2,k,j-2,i)),std::abs(prim(IV2,k,j-1,i)),std::abs(prim(IV2,k,j,i)),std::abs(prim(IV2,k,j+1,i)),std::abs(prim(IV2,k,j+2,i)),std::abs(prim(IV2,k,j+3,i))});
+    Real max_vey = std::max({std::abs(prim(IV2,k,j-3,i)),std::abs(prim(IV2,k,j-2,i)),std::abs(prim(IV2,k,j-1,i)),std::abs(prim(IV2,k,j,i)),std::abs(prim(IV2,k,j+1,i)),std::abs(prim(IV2,k,j+2,i)),std::abs(prim(IV2,k,j+3,i))});
   
     Real Ax_yp, Ax_ym; // A^{x+}_{yijk} and A^{x-}_{yijk}
     HJ_FLUX(Ax_yp,Ax_ym,cons(IA1,k,j-3,i),cons(IA1,k,j-2,i),cons(IA1,k,j-1,i),cons(IA1,k,j,i),cons(IA1,k,j+1,i),cons(IA1,k,j+2,i),cons(IA1,k,j+3,i),dy);
@@ -216,7 +219,7 @@ TaskStatus CalculateHJFluxes3D(std::shared_ptr<MeshData<Real>> &md, const Real d
     //--------------------------------------------------------------------------------------
     // z direction 
 
-    // Real max_vez = std::max({std::abs(prim(IV3,k-3,j,i)),std::abs(prim(IV3,k-2,j,i)),std::abs(prim(IV3,k-1,j,i)),std::abs(prim(IV3,k,j,i)),std::abs(prim(IV3,k+1,j,i)),std::abs(prim(IV3,k+2,j,i)),std::abs(prim(IV3,k+3,j,i))});
+    Real max_vez = std::max({std::abs(prim(IV3,k-3,j,i)),std::abs(prim(IV3,k-2,j,i)),std::abs(prim(IV3,k-1,j,i)),std::abs(prim(IV3,k,j,i)),std::abs(prim(IV3,k+1,j,i)),std::abs(prim(IV3,k+2,j,i)),std::abs(prim(IV3,k+3,j,i))});
 
     Real Ax_zp, Ax_zm; // A^{x+}_{zijk} and A^{x-}_{zijk}
     HJ_FLUX(Ax_zp,Ax_zm,cons(IA1,k-3,j,i),cons(IA1,k-2,j,i),cons(IA1,k-1,j,i),cons(IA1,k,j,i),cons(IA1,k+1,j,i),cons(IA1,k+2,j,i),cons(IA1,k+3,j,i),dz);
@@ -233,6 +236,10 @@ TaskStatus CalculateHJFluxes3D(std::shared_ptr<MeshData<Real>> &md, const Real d
 
     //--------------------------------------------------------------------------------------
     // Reconstruction
+
+    max_vex = 1.1 * max_vex;
+    max_vey = 1.1 * max_vey;
+    max_vez = 1.1 * max_vez;
 
     Real A_x = (0.5 * prim(IV2,k,j,i) * (Ax_ym + Ax_yp)) + (0.5 * prim(IV3,k,j,i) * (Ax_zm + Ax_zp)) - 
                (0.5 * max_vey * (Ax_yp - Ax_ym)) - (0.5 * max_vez * (Ax_zp - Ax_zm)) -
