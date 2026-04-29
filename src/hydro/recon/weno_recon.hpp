@@ -14,7 +14,7 @@
 KOKKOS_INLINE_FUNCTION
 Real WENO3(const Real &q_im1, const Real &q_i, const Real &q_ip1) {
 
-    const Real epsilon = 1E-20;
+    const Real epsilon = 1E-26;
 
     Real beta[2]; // (2.62) 
     beta[0] = SQR(q_ip1 - q_i);
@@ -46,7 +46,7 @@ Real WENO3(const Real &q_im1, const Real &q_i, const Real &q_ip1) {
 KOKKOS_INLINE_FUNCTION
 Real WENO5(const Real &q_im2, const Real &q_im1, const Real &q_i, const Real &q_ip1, const Real &q_ip2) {
     
-    const Real epsilon = 1E-20;
+    const Real epsilon = 1E-26;
 
     Real beta[3]; // (2.63) 
     beta[0] = (13.0/12.0)*SQR(q_i - 2*q_ip1 + q_ip2) + (1.0/4.0)*SQR(3*q_i - 4*q_ip1 + q_ip2);
@@ -86,7 +86,7 @@ Real WENO5(const Real &q_im2, const Real &q_im1, const Real &q_i, const Real &q_
 KOKKOS_INLINE_FUNCTION
 Real WENO7(const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &v_i, const Real &v_ip1, const Real &v_ip2, const Real &v_ip3) {
     
-    const Real epsilon = 1E-20;
+    const Real epsilon = 1E-26;
 
     Real beta[4]; // flipped from MATLAB code where beta[0] is beta_3
     // beta[0] = (15943*v_i*v_i)/960 - (36709*v_i*v_ip1)/480 + (28429*v_i*v_ip2)/480 - (7663*v_i*v_ip3)/480 + (86447*v_ip1*v_ip1)/960 - (68407*v_ip1*v_ip2)/480 + (6223*v_ip1*v_ip3)/160 + (55247*v_ip2*v_ip2)/960 - (15269*v_ip2*v_ip3)/480 + (1421*v_ip3*v_ip3)/320;
@@ -137,7 +137,7 @@ Real WENO7(const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &
 KOKKOS_INLINE_FUNCTION
 Real WENO9(const Real &v_im4, const Real &v_im3, const Real &v_im2, const Real &v_im1, const Real &v_i, const Real &v_ip1, const Real &v_ip2, const Real &v_ip3, const Real &v_ip4) {
     
-    const Real epsilon = 1E-20;
+    const Real epsilon = 1E-26;
 
     Real beta[5]; // flipped from MATLAB code where beta[0] is beta_4
     // beta[0] = (3693653*v_i*v_i)/80640 - (2834627*v_i*v_ip1)/10080 + (2246389*v_i*v_ip2)/6720 - (1850819*v_i*v_ip3)/10080 + (1569797*v_i*v_ip4)/40320 + (8907527*v_ip1*v_ip1)/20160 - (3594209*v_ip1*v_ip2)/3360 + (5988821*v_ip1*v_ip3)/10080 - (639547*v_ip1*v_ip4)/5040  + (551713*v_ip2*v_ip2)/840   - (824853*v_ip2*v_ip3)/1120  + (1063739*v_ip2*v_ip4)/6720 + (4190927*v_ip3*v_ip3)/20160 - (226313*v_ip3*v_ip4)/2520  + (785153*v_ip4*v_ip4)/80640;  
