@@ -59,7 +59,7 @@ void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin) {
 
       } else {
 
-        rho = rho0_r + amp_r * sin(k_r * M_PI * xgrid[i]);
+        rho = rho0_r + amp_r * sin(k_r * M_PI * x);
         vx  = vex_r;
         pre = pre_r;
 
