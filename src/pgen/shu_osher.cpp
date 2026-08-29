@@ -34,22 +34,6 @@ void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin) {
 
   Real x_discont = pin->GetOrAddReal("problem/shu_osher", "x_discont", -0.8);
 
-  Real nx1 = pin->GetOrAddReal("parthenon/mesh", "nx1", 128);
-  Real x1min = pin->GetOrAddReal("parthenon/mesh", "x1min", 0.0);
-  Real x1max = pin->GetOrAddReal("parthenon/mesh", "x1max", 1.0);
-  Real nghost = pin->GetOrAddReal("parthenon/mesh", "nghost", 3);
-
-  double dx = (x1max - x1min) / nx1;
-  const int total_x_points = nx1 + 2 * nghost;
-  const double start_x = x1min - nghost * dx;
-  const double end_x = x1max - dx + nghost * dx;
-  const double step_x = (end_x - start_x) / (total_x_points - 1);
-  std::vector<double> xgrid(total_x_points);
-
-  for (int i = 0; i < total_x_points; ++i) {
-    xgrid[i] = start_x + i * step_x;
-  }
-
   Real gamma = pin->GetReal("hydro", "gamma");
 
   // initialize conserved variables
@@ -65,9 +49,9 @@ void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin) {
       Real rho, vx, vy = 0.0, vz = 0.0;
       Real pre;
 
-      // Real x = coords.Xc<1>(i);
+      Real x = coords.Xc<1>(i);
 
-      if (xgrid[i] < x_discont) {
+      if (x < x_discont) {
 
         rho = rho_l;
         vx  = vex_l;
