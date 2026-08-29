@@ -254,13 +254,13 @@ struct MPReconstruct<Fluid::mhd, Reconstruction::weno9> {
 
       Real A_y = (0.5 * prim(IV1,k,j,i) * (Ay_xm + Ay_xp)) + (0.5 * prim(IV3,k,j,i) * (Ay_zm + Ay_zp)) - 
                 (0.5 * max_vex * (Ay_xp - Ay_xm)) - (0.5 * max_vez * (Ay_zp - Ay_zm)) -
-                (0.5 * prim(IV1,k,j,i) * (Ax_ym + Ax_yp)) - (0.5 * prim(IV3,k,j,i) * (Az_ym + Az_yp));// -
+                (0.5 * prim(IV1,k,j,i) * (Ax_ym + Ax_yp)) - (0.5 * prim(IV3,k,j,i) * (Az_ym + Az_yp)) -
                 //  (nu)*((cons(IA2,k,j-1,i) - 2*cons(IA2,k,j,i) + cons(IA2,k,j+1,i))/(delta+dt));
                 (2 * nu * gamma_2)*((cons(IA2,k,j-1,i) - 2*cons(IA2,k,j,i) + cons(IA2,k,j+1,i))/(delta+dt));
-      
+    
       Real A_z = (0.5 * prim(IV1,k,j,i) * (Az_xm + Az_xp)) + (0.5 * prim(IV2,k,j,i) * (Az_ym + Az_yp)) - 
                 (0.5 * max_vex * (Az_xp - Az_xm)) - (0.5 * max_vey * (Az_yp - Az_ym)) -
-                (0.5 * prim(IV1,k,j,i) * (Ax_zm + Ax_zp)) - (0.5 * prim(IV2,k,j,i) * (Ay_zm + Ay_zp));// -
+                (0.5 * prim(IV1,k,j,i) * (Ax_zm + Ax_zp)) - (0.5 * prim(IV2,k,j,i) * (Ay_zm + Ay_zp)) -
                 //  (nu)*((cons(IA3,k-1,j,i) - 2*cons(IA3,k,j,i) + cons(IA3,k+1,j,i))/(delta+dt));  
                 (2 * nu * gamma_3)*((cons(IA3,k-1,j,i) - 2*cons(IA3,k,j,i) + cons(IA3,k+1,j,i))/(delta+dt));  
       
