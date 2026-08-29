@@ -10,7 +10,7 @@
 
 // AthenaPK headers
 #include "bvals/boundary_conditions_apk.hpp"
-#include "hydro/srcterms/constant_accel.hpp"
+// #include "hydro/srcterms/constant_accel.hpp"
 #include "hydro/hydro.hpp"
 #include "hydro/hydro_driver.hpp"
 #include "main.hpp"
