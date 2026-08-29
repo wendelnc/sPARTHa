@@ -3,10 +3,14 @@
 // Licensed under the 3-Clause License (the "LICENSE");
 
 // Parthenon headers
+#include "bvals/boundary_conditions_generic.hpp"
+#include "defs.hpp"
 #include "globals.hpp"
 #include "parthenon_manager.hpp"
 
 // AthenaPK headers
+#include "bvals/boundary_conditions_apk.hpp"
+#include "hydro/srcterms/constant_accel.hpp"
 #include "hydro/hydro.hpp"
 #include "hydro/hydro_driver.hpp"
 #include "main.hpp"
@@ -24,6 +28,8 @@ std::function<AmrTag(MeshBlockData<Real> *mbd)> ProblemCheckRefinementBlock = nu
 int main(int argc, char *argv[]) {
   using parthenon::ParthenonManager;
   using parthenon::ParthenonStatus;
+  using BF = parthenon::BoundaryFace;
+  using parthenon::BoundaryFunction::BCSide;
   ParthenonManager pman;
 
   // call ParthenonInit to initialize MPI and Kokkos, parse the input deck, and set up
@@ -69,12 +75,57 @@ int main(int argc, char *argv[]) {
   } else if (problem == "field_loop") {
     pman.app_input->ProblemGenerator = field_loop::ProblemGenerator;
     Hydro::ProblemInitPackageData = field_loop::ProblemInitPackageData;
+  // } else if (problem == "smooth_alfven_2d") {
+  //   pman.app_input->ProblemGenerator = smooth_alfven_2d::ProblemGenerator;
+  } else if (problem == "cloud_shock") {
+    pman.app_input->ProblemGenerator = cloud_shock::ProblemGenerator;
+    pman.app_input->RegisterBoundaryCondition(parthenon::BoundaryFace::inner_x1,
+                                              "inflow_x1", cloud_shock::InflowX1);
+  } else if (problem == "taylorgreen") {
+    pman.app_input->ProblemGenerator = taylorgreen::ProblemGenerator;
+  
+  // } else if (problem == "rt") {
+  //   Hydro::ProblemInitPackageData = rt::ProblemInitPackageData;
+  //   pman.app_input->ProblemGenerator = rt::ProblemGenerator;
+  //   pman.app_input->RegisterBoundaryCondition(
+  //       BF::inner_x2, "project_pressure",
+  //       Hydro::BoundaryFunction::ProjectPressure<X2DIR, BCSide::Inner>);
+  //   pman.app_input->RegisterBoundaryCondition(
+  //       BF::outer_x2, "project_pressure",
+  //       Hydro::BoundaryFunction::ProjectPressure<X2DIR, BCSide::Outer>);
+  //   pman.app_input->RegisterBoundaryCondition(
+  //       BF::inner_x3, "project_pressure",
+  //       Hydro::BoundaryFunction::ProjectPressure<X3DIR, BCSide::Inner>);
+  //   pman.app_input->RegisterBoundaryCondition(
+  //       BF::outer_x3, "project_pressure",
+  //       Hydro::BoundaryFunction::ProjectPressure<X3DIR, BCSide::Outer>);
+  //   Hydro::ProblemSourceFirstOrder = const_accel::ConstantAccelSrcTerm;
+  
+  } else if (problem == "symmetric_implosion") {
+    pman.app_input->ProblemGenerator = symmetric_implosion::ProblemGenerator;
+  } else if (problem == "shu_osher") {
+    pman.app_input->ProblemGenerator = shu_osher::ProblemGenerator;
   } else {
     // parthenon throw error message for the invalid problem
     std::stringstream msg;
     msg << "Problem ID '" << problem << "' is not implemented yet.";
     PARTHENON_THROW(msg);
   }
+
+  const std::string REFLECTING = "reflecting";
+  using Hydro::BoundaryFunction::ReflectBC;
+  pman.app_input->RegisterBoundaryCondition(BF::inner_x1, REFLECTING,
+                                            ReflectBC<X1DIR, BCSide::Inner>);
+  pman.app_input->RegisterBoundaryCondition(BF::outer_x1, REFLECTING,
+                                            ReflectBC<X1DIR, BCSide::Outer>);
+  pman.app_input->RegisterBoundaryCondition(BF::inner_x2, REFLECTING,
+                                            ReflectBC<X2DIR, BCSide::Inner>);
+  pman.app_input->RegisterBoundaryCondition(BF::outer_x2, REFLECTING,
+                                            ReflectBC<X2DIR, BCSide::Outer>);
+  pman.app_input->RegisterBoundaryCondition(BF::inner_x3, REFLECTING,
+                                            ReflectBC<X3DIR, BCSide::Inner>);
+  pman.app_input->RegisterBoundaryCondition(BF::outer_x3, REFLECTING,
+                                            ReflectBC<X3DIR, BCSide::Outer>);
 
   pman.ParthenonInitPackagesAndMesh();
 

@@ -21,13 +21,47 @@
 #include "hydro.hpp"
 #include "hydro_driver.hpp"
 // #include "recon/mp_weno3.hpp"
-#include "recon/mp_weno5.hpp"
+// #include "recon/mp_weno5.hpp"
 // #include "recon/mp_weno7.hpp"
 // #include "recon/mp_weno9.hpp"
 
 using namespace parthenon::driver::prelude;
 
 namespace Hydro {
+
+template <>
+TaskStatus UpdateWithFluxDivergenceCA(MeshData<Real> *u0_data, MeshData<Real> *u1_data,
+                                    const Real gam0, const Real gam1,
+                                    const Real beta_dt) {
+  const IndexDomain interior = IndexDomain::interior;
+
+  std::vector<parthenon::MetadataFlag> flags({Metadata::WithFluxes});
+  auto u0_pack = u0_data->PackVariablesAndFluxes(flags);
+  const auto &u1_pack = u1_data->PackVariables(flags);
+  const IndexRange ib = u0_data->GetBoundsI(interior);
+  const IndexRange jb = u0_data->GetBoundsJ(interior);
+  const IndexRange kb = u0_data->GetBoundsK(interior);
+  const int ndim = u0_pack.GetNdim();
+  // std::cout << "UpdateWithFluxDivergenceCA" << std::endl;
+
+  parthenon::par_for(
+      DEFAULT_LOOP_PATTERN, "UpdateWithFluxDivergenceMesh", DevExecSpace(), 0,
+      u0_pack.GetDim(5) - 1, 0, u0_pack.GetDim(4) - 1, kb.s, kb.e, jb.s, jb.e, ib.s, ib.e,
+      KOKKOS_LAMBDA(const int m, const int l, const int k, const int j, const int i) {
+        if (u0_pack.IsAllocated(m, l) && u1_pack.IsAllocated(m, l)) {
+          const auto &coords = u0_pack.GetCoords(m);
+          const auto &u0 = u0_pack(m);
+          if (l < 8) {
+            u0_pack(m, l, k, j, i) = gam0 * u0(l, k, j, i) + gam1 * u1_pack(m, l, k, j, i) +
+                                   beta_dt * parthenon::Update::FluxDivHelper(l, k, j, i, ndim, coords, u0);
+          } else {
+            u0_pack(m, l, k, j, i) = gam0 * u0(l, k, j, i) + gam1 * u1_pack(m, l, k, j, i) -
+                                   beta_dt * u0.flux(X1DIR, l, k, j, i);
+          }
+        }
+      });
+  return TaskStatus::complete;
+}  
 
 HydroDriver::HydroDriver(ParameterInput *pin, ApplicationInput *app_in, Mesh *pm)
     : MultiStageDriver(pin, app_in, pm) {
@@ -43,6 +77,18 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
   TaskCollection tc;
   const auto &stage_name = integrator->stage_name;
   auto hydro_pkg = blocks[0]->packages.Get("Hydro");
+
+  auto hj_flux_2d =
+      hydro_pkg->Param<HJFlux2DFunc>("hj_flux_2d");
+
+  auto hj_flux_3d =
+      hydro_pkg->Param<HJFlux3DFunc>("hj_flux_3d");
+
+  auto hj_afterstep_2d =
+      hydro_pkg->Param<HJAfterstep2DFunc>("hj_afterstep_2d");
+
+  auto hj_afterstep_3d =
+      hydro_pkg->Param<HJAfterstep3DFunc>("hj_afterstep_3d");
 
   TaskID none(0);
   // Number of task lists that can be executed indepenently and thus *may*
@@ -116,9 +162,9 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
     auto calc_mp_flux = first_order_flux_correct;
     if (fluid == Fluid::mhd) {
       if (pmb->pmy_mesh->ndim == 2) {
-        auto calc_mp_flux = tl.AddTask(first_order_flux_correct, CalculateHJFluxes2D, mu0); // 2D Magnetic Potential
+        calc_mp_flux = tl.AddTask(first_order_flux_correct, hj_flux_2d, mu0);
       } else if (pmb->pmy_mesh->ndim == 3) {
-        auto calc_mp_flux = tl.AddTask(first_order_flux_correct, CalculateHJFluxes3D, mu0, integrator->dt); // 3D Magnetic Potential
+        calc_mp_flux = tl.AddTask(first_order_flux_correct, hj_flux_3d, mu0, integrator->dt);
       }
     }
 
@@ -129,7 +175,7 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
 
     // Compute the divergence of fluxes of conserved variables
     auto update = tl.AddTask(
-        set_flx, parthenon::Update::UpdateWithFluxDivergenceCA<MeshData<Real>>, mu0.get(),
+        set_flx, UpdateWithFluxDivergenceCA<MeshData<Real>>, mu0.get(),
         mu1.get(), integrator->gam0[stage - 1], integrator->gam1[stage - 1],
         integrator->beta[stage - 1] * integrator->dt);
 
@@ -149,17 +195,16 @@ TaskCollection HydroDriver::MakeTaskCollection(BlockList_t &blocks, int stage) {
     // Unstaggered Constrained Transport Afterstep
     if (fluid == Fluid::mhd) {
       if (pmb->pmy_mesh->ndim == 2) {
-        
-        auto afterstep_flux = tl.AddTask(bcstep1, HJAfterstep2D, mu0);; // 2D Magnetic Potential
-        parthenon::AddBoundaryExchangeTasks(afterstep_flux | start_bnd, tl, mu0, pmesh->multilevel); 
+
+        auto afterstep_flux = tl.AddTask(bcstep1, hj_afterstep_2d, mu0);
+        parthenon::AddBoundaryExchangeTasks(afterstep_flux | start_bnd, tl, mu0, pmesh->multilevel);
 
       } else if (pmb->pmy_mesh->ndim == 3) {
-        
-        auto afterstep_flux = tl.AddTask(bcstep1, HJAfterstep3D, mu0); // 3D Magnetic Potential
-        parthenon::AddBoundaryExchangeTasks(afterstep_flux | start_bnd, tl, mu0, pmesh->multilevel); 
 
+        auto afterstep_flux = tl.AddTask(bcstep1, hj_afterstep_3d, mu0);
+        parthenon::AddBoundaryExchangeTasks(afterstep_flux | start_bnd, tl, mu0, pmesh->multilevel);
       }
-    } 
+    }
 
 
   } // single_tasklist_per_pack_region

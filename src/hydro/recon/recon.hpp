@@ -23,17 +23,26 @@ using parthenon::Real;
 template <Fluid fluid, Reconstruction recon>
 struct Reconstruct;
 
+template <Fluid fluid, Reconstruction recon>
+struct MPReconstruct;
+
 // now include the specializations
 #include "hydro_llf.hpp"
 #include "hydro_weno3.hpp"
 #include "hydro_weno5.hpp"
 #include "hydro_weno7.hpp"
 #include "hydro_weno9.hpp"
+
 #include "mhd_llf.hpp"
 #include "mhd_weno3.hpp"
 #include "mhd_weno5.hpp"
 #include "mhd_weno7.hpp"
 #include "mhd_weno9.hpp"
+
+#include "mp_weno3.hpp"
+#include "mp_weno5.hpp"
+#include "mp_weno7.hpp"
+#include "mp_weno9.hpp"
 
 // "none" solvers for runs/testing without fluid evolution, i.e., just reset fluxes
 template <>
@@ -64,5 +73,6 @@ struct Reconstruct<Fluid::mhd, Reconstruction::none> {
     });
   }
 };
+
 
 #endif // RECON_HPP_

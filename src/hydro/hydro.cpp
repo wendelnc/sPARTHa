@@ -44,7 +44,7 @@ parthenon::Packages_t ProcessPackages(std::unique_ptr<ParameterInput> &pin) {
   return packages;
 }
 
-template <Hst hst, int idx = -1>
+template <Hst hst, int idx = -1, Reconstruction recon = Reconstruction::weno5>
 Real HydroHst(MeshData<Real> *md) {
   const auto &cellbounds = md->GetBlockData(0)->GetBlockPointer()->cellbounds;
   IndexRange ib = cellbounds.GetBoundsI(IndexDomain::interior);
@@ -111,74 +111,84 @@ Real HydroHst(MeshData<Real> *md) {
 
         } else if (hst == Hst::divb) {
 
+          Real divb = 0.0;
+
           ///////////////////////////////////////////////////////////////////////////////////////
           // 2nd-order central difference for divergence of B
           ///////////////////////////////////////////////////////////////////////////////////////
           
-          // Real divb =
-          //           (cons(IB1, k, j, i + 1) - cons(IB1, k, j, i - 1)) / (2 * coords.Dxc<1>(k, j, i)) +
-          //           (cons(IB2, k, j + 1, i) - cons(IB2, k, j - 1, i)) / (2 * coords.Dxc<2>(k, j, i));
-          
-          // if (three_d) {
-          //   divb += (cons(IB3, k + 1, j, i) - cons(IB3, k - 1, j, i)) / (2 * coords.Dxc<3>(k, j, i));
-          // }
+          if constexpr (recon == Reconstruction::weno3) {
+            divb =
+                      (cons(IB1, k, j, i + 1) - cons(IB1, k, j, i - 1)) / (2 * coords.Dxc<1>(k, j, i)) +
+                      (cons(IB2, k, j + 1, i) - cons(IB2, k, j - 1, i)) / (2 * coords.Dxc<2>(k, j, i));
+            
+            if (three_d) {
+              divb += (cons(IB3, k + 1, j, i) - cons(IB3, k - 1, j, i)) / (2 * coords.Dxc<3>(k, j, i));
+            }
+          }
           
           ///////////////////////////////////////////////////////////////////////////////////////
           // 4th-order central difference for divergence of B
           ///////////////////////////////////////////////////////////////////////////////////////
           
-          Real divb =
-            (cons(IB1, k, j, i - 2) - 8.0 * cons(IB1, k, j, i - 1) - 
-            cons(IB1, k, j, i + 2) + 8.0 * cons(IB1, k, j, i + 1)) /
-            (12.0 * coords.Dxc<1>(k, j, i)) +
-            
-            (cons(IB2, k, j - 2, i) - 8.0 * cons(IB2, k, j - 1, i) -
-            cons(IB2, k, j + 2, i) + 8.0 * cons(IB2, k, j + 1, i)) /
-            (12.0 * coords.Dxc<2>(k, j, i));
+          if constexpr (recon == Reconstruction::weno5) {
+            divb =
+              (cons(IB1, k, j, i - 2) - 8.0 * cons(IB1, k, j, i - 1) - 
+              cons(IB1, k, j, i + 2) + 8.0 * cons(IB1, k, j, i + 1)) /
+              (12.0 * coords.Dxc<1>(k, j, i)) +
+              
+              (cons(IB2, k, j - 2, i) - 8.0 * cons(IB2, k, j - 1, i) -
+              cons(IB2, k, j + 2, i) + 8.0 * cons(IB2, k, j + 1, i)) /
+              (12.0 * coords.Dxc<2>(k, j, i));
 
-          if (three_d) {
-            divb += (cons(IB3, k - 2, j, i) - 8.0 * cons(IB3, k - 1, j, i) - 
-                    cons(IB3, k + 2, j, i) + 8.0 * cons(IB3, k + 1, j, i)) /
-                    (12.0 * coords.Dxc<3>(k, j, i));
+            if (three_d) {
+              divb += (cons(IB3, k - 2, j, i) - 8.0 * cons(IB3, k - 1, j, i) - 
+                      cons(IB3, k + 2, j, i) + 8.0 * cons(IB3, k + 1, j, i)) /
+                      (12.0 * coords.Dxc<3>(k, j, i));
+            }
           }
-        
+
           ///////////////////////////////////////////////////////////////////////////////////////
           // 6th-order central difference for divergence of B
           ///////////////////////////////////////////////////////////////////////////////////////
           
-          // Real divb =
-          //   (cons(IB1, k, j, i + 3) - 9.0 * cons(IB1, k, j, i + 2) + 45.0 * cons(IB1, k, j, i + 1) - 
-          //   cons(IB1, k, j, i - 3) + 9.0 * cons(IB1, k, j, i - 2) - 45.0 * cons(IB1, k, j, i - 1)) /
-          //   (60.0 * coords.Dxc<1>(k, j, i)) +
+          if constexpr (recon == Reconstruction::weno7) {
+            divb =
+              (cons(IB1, k, j, i + 3) - 9.0 * cons(IB1, k, j, i + 2) + 45.0 * cons(IB1, k, j, i + 1) - 
+              cons(IB1, k, j, i - 3) + 9.0 * cons(IB1, k, j, i - 2) - 45.0 * cons(IB1, k, j, i - 1)) /
+              (60.0 * coords.Dxc<1>(k, j, i)) +
 
-          //   (cons(IB2, k, j + 3, i) - 9.0 * cons(IB2, k, j + 2, i) + 45.0 * cons(IB2, k, j + 1, i) - 
-          //   cons(IB2, k, j - 3, i) + 9.0 * cons(IB2, k, j - 2, i) - 45.0 * cons(IB2, k, j - 1, i)) /
-          //   (60.0 * coords.Dxc<2>(k, j, i));
+              (cons(IB2, k, j + 3, i) - 9.0 * cons(IB2, k, j + 2, i) + 45.0 * cons(IB2, k, j + 1, i) - 
+              cons(IB2, k, j - 3, i) + 9.0 * cons(IB2, k, j - 2, i) - 45.0 * cons(IB2, k, j - 1, i)) /
+              (60.0 * coords.Dxc<2>(k, j, i));
 
-          // if (three_d) {
-          //   divb += (cons(IB3, k + 3, j, i) - 9.0 * cons(IB3, k + 2, j, i) + 45.0 * cons(IB3, k + 1, j, i) - 
-          //           cons(IB3, k - 3, j, i) + 9.0 * cons(IB3, k - 2, j, i) - 45.0 * cons(IB3, k - 1, j, i)) /
-          //           (60.0 * coords.Dxc<3>(k, j, i));
-          // }
+            if (three_d) {
+              divb += (cons(IB3, k + 3, j, i) - 9.0 * cons(IB3, k + 2, j, i) + 45.0 * cons(IB3, k + 1, j, i) - 
+                      cons(IB3, k - 3, j, i) + 9.0 * cons(IB3, k - 2, j, i) - 45.0 * cons(IB3, k - 1, j, i)) /
+                      (60.0 * coords.Dxc<3>(k, j, i));
+            }
+          }
 
           ///////////////////////////////////////////////////////////////////////////////////////
           // 8th-order central difference for divergence of B
           ///////////////////////////////////////////////////////////////////////////////////////
           
-          // Real divb =
-          //   (3.0 * cons(IB1,k,j,i-4) - 32.0 * cons(IB1,k,j,i-3) + 168.0 * cons(IB1,k,j,i-2) - 672.0 * cons(IB1,k,j,i-1) -
-          //   3.0 * cons(IB1,k,j,i+4) + 32.0 * cons(IB1,k,j,i+3) - 168.0 * cons(IB1,k,j,i+2) + 672.0 * cons(IB1,k,j,i+1)) / 
-          //   (840.0 * coords.Dxc<1>(k, j, i)) +
+          if constexpr (recon == Reconstruction::weno9) {
+            divb =
+              (3.0 * cons(IB1,k,j,i-4) - 32.0 * cons(IB1,k,j,i-3) + 168.0 * cons(IB1,k,j,i-2) - 672.0 * cons(IB1,k,j,i-1) -
+              3.0 * cons(IB1,k,j,i+4) + 32.0 * cons(IB1,k,j,i+3) - 168.0 * cons(IB1,k,j,i+2) + 672.0 * cons(IB1,k,j,i+1)) / 
+              (840.0 * coords.Dxc<1>(k, j, i)) +
 
-          //   (3.0 * cons(IB2,k,j-4,i) - 32.0 * cons(IB2,k,j-3,i) + 168.0 * cons(IB2,k,j-2,i) - 672.0 * cons(IB2,k,j-1,i) -
-          //   3.0 * cons(IB2,k,j+4,i) + 32.0 * cons(IB2,k,j+3,i) - 168.0 * cons(IB2,k,j+2,i) + 672.0 * cons(IB2,k,j+1,i)) / 
-          //   (840.0 * coords.Dxc<2>(k, j, i));
+              (3.0 * cons(IB2,k,j-4,i) - 32.0 * cons(IB2,k,j-3,i) + 168.0 * cons(IB2,k,j-2,i) - 672.0 * cons(IB2,k,j-1,i) -
+              3.0 * cons(IB2,k,j+4,i) + 32.0 * cons(IB2,k,j+3,i) - 168.0 * cons(IB2,k,j+2,i) + 672.0 * cons(IB2,k,j+1,i)) / 
+              (840.0 * coords.Dxc<2>(k, j, i));
 
-          // if (three_d) {
-          //   divb += (3.0 * cons(IB3,k-4,j,i) - 32.0 * cons(IB3,k-3,j,i) + 168.0 * cons(IB3,k-2,j,i) - 672.0 * cons(IB3,k-1,j,i) -
-          //           3.0 * cons(IB3,k+4,j,i) + 32.0 * cons(IB3,k+3,j,i) - 168.0 * cons(IB3,k+2,j,i) + 672.0 * cons(IB3,k+1,j,i)) / 
-          //           (840.0 * coords.Dxc<3>(k, j, i));
-          // }
+            if (three_d) {
+              divb += (3.0 * cons(IB3,k-4,j,i) - 32.0 * cons(IB3,k-3,j,i) + 168.0 * cons(IB3,k-2,j,i) - 672.0 * cons(IB3,k-1,j,i) -
+                      3.0 * cons(IB3,k+4,j,i) + 32.0 * cons(IB3,k+3,j,i) - 168.0 * cons(IB3,k+2,j,i) + 672.0 * cons(IB3,k+1,j,i)) / 
+                      (840.0 * coords.Dxc<3>(k, j, i));
+            }
+          }
 
           ///////////////////////////////////////////////////////////////////////////////////////          
 
@@ -281,6 +291,65 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
 
   pkg->AddParam<>("recon", recon);
 
+  HJFlux2DFunc hj_flux_2d = nullptr;
+  HJFlux3DFunc hj_flux_3d = nullptr;
+  HJAfterstep2DFunc hj_afterstep_2d = nullptr;
+  HJAfterstep3DFunc hj_afterstep_3d = nullptr;
+
+  if (fluid == Fluid::mhd) {
+    switch (recon) {
+
+      case Reconstruction::weno3:
+        hj_flux_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno3>::CalculateHJFluxes2D;
+        hj_flux_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno3>::CalculateHJFluxes3D;
+        hj_afterstep_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno3>::HJAfterstep2D;
+        hj_afterstep_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno3>::HJAfterstep3D;
+        break;
+
+      case Reconstruction::weno5:
+        hj_flux_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno5>::CalculateHJFluxes2D;
+        hj_flux_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno5>::CalculateHJFluxes3D;
+        hj_afterstep_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno5>::HJAfterstep2D;
+        hj_afterstep_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno5>::HJAfterstep3D;
+        break;
+
+      case Reconstruction::weno7:
+        hj_flux_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno7>::CalculateHJFluxes2D;
+        hj_flux_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno7>::CalculateHJFluxes3D;
+        hj_afterstep_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno7>::HJAfterstep2D;
+        hj_afterstep_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno7>::HJAfterstep3D;
+        break;
+
+      case Reconstruction::weno9:
+        hj_flux_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno9>::CalculateHJFluxes2D;
+        hj_flux_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno9>::CalculateHJFluxes3D;
+        hj_afterstep_2d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno9>::HJAfterstep2D;
+        hj_afterstep_3d =
+            &MPReconstruct<Fluid::mhd, Reconstruction::weno9>::HJAfterstep3D;
+        break;
+
+      case Reconstruction::none:
+        break;
+
+      default:
+        PARTHENON_FAIL("Unsupported reconstruction for HJ fluxes.");
+    }
+  }
 
   // Map contaning all compiled in flux functions
   std::map<FluxFunKey_t, FluxFun_t *> flux_functions{};
@@ -301,6 +370,7 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
   flux_other_stage = flux_functions.at(std::make_tuple(fluid, recon));
   
   parthenon::HstVar_list hst_vars = {};
+  
   hst_vars.emplace_back(HistoryOutputVar(parthenon::UserHistoryOperation::sum,
                                          HydroHst<Hst::idx, IDN>, "mass"));
   hst_vars.emplace_back(HistoryOutputVar(parthenon::UserHistoryOperation::sum,
@@ -313,12 +383,56 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
       HistoryOutputVar(parthenon::UserHistoryOperation::sum, HydroHst<Hst::ekin>, "KE"));
   hst_vars.emplace_back(HistoryOutputVar(parthenon::UserHistoryOperation::sum,
                                          HydroHst<Hst::idx, IEN>, "tot-E"));
+  // if (fluid == Fluid::mhd) {
+  //   hst_vars.emplace_back(HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+  //                                          HydroHst<Hst::emag>, "ME"));
+  //   hst_vars.emplace_back(HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+  //                                          HydroHst<Hst::divb>, "relDivB"));
+  // }
+
   if (fluid == Fluid::mhd) {
-    hst_vars.emplace_back(HistoryOutputVar(parthenon::UserHistoryOperation::sum,
-                                           HydroHst<Hst::emag>, "ME"));
-    hst_vars.emplace_back(HistoryOutputVar(parthenon::UserHistoryOperation::sum,
-                                           HydroHst<Hst::divb>, "relDivB"));
+
+    hst_vars.emplace_back(
+        HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                        HydroHst<Hst::emag>,
+                        "ME"));
+
+    switch (recon) {
+
+      case Reconstruction::weno3:
+        hst_vars.emplace_back(
+            HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                            HydroHst<Hst::divb, -1, Reconstruction::weno3>,
+                            "relDivB"));
+        break;
+
+      case Reconstruction::weno5:
+        hst_vars.emplace_back(
+            HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                            HydroHst<Hst::divb, -1, Reconstruction::weno5>,
+                            "relDivB"));
+        break;
+
+      case Reconstruction::weno7:
+        hst_vars.emplace_back(
+            HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                            HydroHst<Hst::divb, -1, Reconstruction::weno7>,
+                            "relDivB"));
+        break;
+
+      case Reconstruction::weno9:
+        hst_vars.emplace_back(
+            HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                            HydroHst<Hst::divb, -1, Reconstruction::weno9>,
+                            "relDivB"));
+        break;
+
+      default:
+        PARTHENON_FAIL("Unsupported reconstruction for divB history output.");
+    }
   }
+
+
   pkg->AddParam<>(parthenon::hist_param_key, hst_vars, true);
 
   // not using GetOrAdd here until there's a reasonable default
@@ -344,6 +458,11 @@ std::shared_ptr<StateDescriptor> Initialize(ParameterInput *pin) {
   pkg->AddParam<>("integrator", integrator);
   pkg->AddParam<FluxFun_t *>("flux_first_stage", flux_first_stage);
   pkg->AddParam<FluxFun_t *>("flux_other_stage", flux_other_stage);
+
+  pkg->AddParam<HJFlux2DFunc>("hj_flux_2d", hj_flux_2d);
+  pkg->AddParam<HJFlux3DFunc>("hj_flux_3d", hj_flux_3d);
+  pkg->AddParam<HJAfterstep2DFunc>("hj_afterstep_2d", hj_afterstep_2d);
+  pkg->AddParam<HJAfterstep3DFunc>("hj_afterstep_3d", hj_afterstep_3d);
 
   auto first_order_flux_correct =
       pin->GetOrAddBoolean("hydro", "first_order_flux_correct", false);

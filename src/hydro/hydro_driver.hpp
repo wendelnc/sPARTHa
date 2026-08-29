@@ -13,6 +13,17 @@ using namespace parthenon::driver::prelude;
 
 namespace Hydro {
 
+// TaskStatus UpdateWithFluxDivergenceCA(
+//     MeshData<Real> *u0_data,
+//     MeshData<Real> *u1_data,
+//     const Real gam0,
+//     const Real gam1,
+//     const Real beta_dt);
+
+template <typename T>
+TaskStatus UpdateWithFluxDivergenceCA(T *data_u0, T *data_u1, const Real gam0,
+                                    const Real gam1, const Real beta_dt);    
+    
 class HydroDriver : public MultiStageDriver {
  public:
   HydroDriver(ParameterInput *pin, ApplicationInput *app_in, Mesh *pm);

@@ -8,8 +8,8 @@ add_executable(
         eos/adiabatic_mhd.cpp
         units.hpp
         bvals/boundary_conditions_apk.hpp
-        hydro/srcterms/constant_accel.hpp
-        hydro/srcterms/constant_accel.cpp
+        # hydro/srcterms/constant_accel.hpp
+        # hydro/srcterms/constant_accel.cpp
         hydro/hydro_driver.cpp
         hydro/hydro.cpp
         refinement/gradient.cpp

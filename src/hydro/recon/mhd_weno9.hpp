@@ -1007,4 +1007,4 @@ struct Reconstruct<Fluid::mhd, Reconstruction::weno9> {
   }
 };
 
-#endif // MHD_WENO7_HPP_            
+#endif // MHD_WENO9_HPP_

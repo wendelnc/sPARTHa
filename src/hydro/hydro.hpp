@@ -43,6 +43,18 @@ TaskStatus CalculateFluxes(std::shared_ptr<MeshData<Real>> &md);
 using FluxFun_t =
     decltype(CalculateFluxes<Fluid::euler, Reconstruction::weno3>);
 
+using HJFlux2DFunc =
+    TaskStatus (*)(std::shared_ptr<MeshData<Real>> &);
+
+using HJFlux3DFunc =
+    TaskStatus (*)(std::shared_ptr<MeshData<Real>> &, const Real);
+
+using HJAfterstep2DFunc =
+    TaskStatus (*)(std::shared_ptr<MeshData<Real>> &);
+
+using HJAfterstep3DFunc =
+    TaskStatus (*)(std::shared_ptr<MeshData<Real>> &);
+    
 template <Fluid fluid>
 TaskStatus FirstOrderFluxCorrect(MeshData<Real> *u0_data, MeshData<Real> *u1_data,
                                  const Real gam0, const Real gam1, const Real beta_dt);

@@ -15,5 +15,7 @@ target_sources(spartha PRIVATE
     smooth_alfven_2d.cpp
     cloud_shock.cpp
     taylor_green.cpp
-    rt.cpp
+    # rt.cpp
+    symmetric_implosion.cpp
+    shu_osher.cpp
     )
