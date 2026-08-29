@@ -1,0 +1,68 @@
+# AthenaPK - a performance portable block structured AMR MHD code
+# Copyright (c) 2021, Athena Parthenon Collaboration. All rights reserved.
+# Licensed under the BSD 3-Clause License (the "LICENSE");
+
+<comment>
+problem = The 2D cloud-shock interaction problem.
+
+<job>
+problem_id = cloud_shock
+
+<parthenon/mesh>
+refinement = none
+nghost = 3
+
+nx1 = 256
+x1min = 0.0
+x1max = 1.0
+ix1_bc = outflow
+ox1_bc = outflow
+
+nx2 = 256
+x2min = 0.0
+x2max = 1.0
+ix2_bc = outflow
+ox2_bc = outflow
+
+nx3 = 256
+x3min = 0.0
+x3max = 1.0
+ix3_bc = outflow
+ox3_bc = outflow
+
+<parthenon/meshblock>
+nx1= 64
+nx2= 64
+nx3= 64
+
+<parthenon/time>
+integrator = rk3
+cfl = 0.30
+tlim = 0.06
+nlim = -1
+ncycle_out_mesh = -500  # print mesh structure every 500 cyles and on refinement
+
+<hydro>
+fluid = mhd
+eos = adiabatic
+reconstruction = weno5
+gamma = 1.666666666666667 # gamma = C_p/C_v
+dfloor = 0.1    # density floor; should not be required enabled for testing
+pfloor = 0.01   # pressure floor; should not be required enabled for testing
+eceil = 1000.0 
+
+<parthenon/output0>
+file_type = hdf5
+dt = 0.001
+id = prim
+variables = prim
+
+<parthenon/output1>
+file_type  = hst         # History data dump
+dt         = 0.001       # time increment between outputs
+id = prim
+
+<parthenon/output2>
+file_type  = rst        # Binary data dump
+dt         = 0.01      # time increment between outputs
+id         = restart

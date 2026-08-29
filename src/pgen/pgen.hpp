@@ -80,4 +80,43 @@ void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin);
 void ProblemInitPackageData(ParameterInput *pin, parthenon::StateDescriptor *pkg);
 } // namespace field_loop
 
+namespace smooth_alfven_2d {
+using namespace parthenon::driver::prelude;
+
+void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin);
+} // namespace smooth_alfven_2d
+
+namespace cloud_shock {
+using namespace parthenon::driver::prelude;
+
+void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin);
+void InflowX1(std::shared_ptr<MeshBlockData<Real>> &mbd, bool coarse);
+
+} // namespace cloud
+
+namespace taylorgreen {
+using namespace parthenon::driver::prelude;
+
+void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin);
+} // namespace taylorgreen
+
+// namespace rt {
+// using namespace parthenon::driver::prelude;
+
+// void ProblemInitPackageData(ParameterInput *pin, parthenon::StateDescriptor *hydro_pkg);
+// void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin);
+// } // namespace rt
+
+namespace symmetric_implosion {
+using namespace parthenon::driver::prelude;
+
+void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin);
+} // namespace symmetric_implosion
+
+namespace shu_osher {
+using namespace parthenon::driver::prelude;
+
+void ProblemGenerator(MeshBlock *pmb, parthenon::ParameterInput *pin);
+} // namespace shu_osher
+
 #endif // PGEN_PGEN_HPP_
