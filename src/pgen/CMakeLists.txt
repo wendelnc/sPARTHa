@@ -12,7 +12,7 @@ target_sources(spartha PRIVATE
     orszag_tang_3d.cpp
     turbulence.cpp
     field_loop.cpp
-    smooth_alfven_2d.cpp
+    # smooth_alfven_2d.cpp
     cloud_shock.cpp
     taylor_green.cpp
     # rt.cpp
