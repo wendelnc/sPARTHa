@@ -12,6 +12,10 @@
 #include <cmath>     // log
 #include <cstring>   // strcmp()
 
+#include <fstream>
+#include <iostream>
+#include <vector>
+
 // Parthenon headers
 #include "basic_types.hpp"
 #include "kokkos_abstraction.hpp"
@@ -38,7 +42,7 @@ using utils::few_modes_ft::FewModesFT;
 
 // TODO(?) until we are able to process multiple variables in a single hst function call
 // we'll use this enum to identify the various vars.
-enum class HstQuan { Ms, Ma, pb };
+enum class HstQuan { Ms, Ma, pb, ThermalP, ThermalE, KinE, MagE, TotE };
 
 // Compute the local sum of either the sonic Mach number,
 // alfvenic Mach number, or plasma beta as specified by `hst_quan`.
@@ -58,6 +62,7 @@ Real TurbulenceHst(MeshData<Real> *md) {
   // after this function is called the result is MPI_SUMed across all procs/meshblocks
   // thus, we're only concerned with local sums
   Real sum;
+  // Real sum = 0.0;
 
   pmb->par_reduce(
       "hst_turbulence", 0, prim_pack.GetDim(5) - 1, kb.s, kb.e, jb.s, jb.e, ib.s, ib.e,
@@ -65,34 +70,57 @@ Real TurbulenceHst(MeshData<Real> *md) {
         const auto &prim = prim_pack(b);
         const auto &coords = prim_pack.GetCoords(b);
 
+        const auto rho = prim(IDN, k, j, i);
+        const auto pre = prim(IPR, k, j, i);
+
         const auto vel2 = (prim(IV1, k, j, i) * prim(IV1, k, j, i) +
                            prim(IV2, k, j, i) * prim(IV2, k, j, i) +
                            prim(IV3, k, j, i) * prim(IV3, k, j, i));
 
-        const auto c_s =
-            std::sqrt(gamma * prim(IPR, k, j, i) / prim(IDN, k, j, i)); // speed of sound
+        const auto c_s = std::sqrt(gamma * pre / rho); // speed of sound
 
-        const auto e_kin = 0.5 * prim(IDN, k, j, i) * vel2;
+        const auto e_kin = 0.5 * rho * vel2;
 
-        if (hst_quan == HstQuan::Ms) { // Ms
-          lsum += std::sqrt(vel2) / c_s * coords.CellVolume(k, j, i);
-        }
+        const auto e_th = pre / (gamma - 1.0); // Thermal/internal energy density
+
+        auto e_mag = 0.0;
 
         if (fluid == Fluid::mhd) {
-          const auto B2 = (prim(IB1, k, j, i) * prim(IB1, k, j, i) +
-                           prim(IB2, k, j, i) * prim(IB2, k, j, i) +
-                           prim(IB3, k, j, i) * prim(IB3, k, j, i));
+          const auto B2 =
+              prim(IB1, k, j, i) * prim(IB1, k, j, i) +
+              prim(IB2, k, j, i) * prim(IB2, k, j, i) +
+              prim(IB3, k, j, i) * prim(IB3, k, j, i);
 
-          const auto e_mag = 0.5 * B2;
-
-          if (hst_quan == HstQuan::Ma) { // Ma
-            lsum += std::sqrt(e_kin / e_mag) * coords.CellVolume(k, j, i);
-          } else if (hst_quan == HstQuan::pb) { // plasma beta
-            lsum += prim(IPR, k, j, i) / e_mag * coords.CellVolume(k, j, i);
-          }
+          e_mag = 0.5 * B2;
         }
+
+        if (hst_quan == HstQuan::Ms) {
+          lsum += std::sqrt(vel2) / c_s * coords.CellVolume(k, j, i); } 
+        
+        else if (hst_quan == HstQuan::ThermalP) {
+          lsum += pre * coords.CellVolume(k, j, i); } 
+        
+        else if (hst_quan == HstQuan::ThermalE) {
+          lsum += e_th * coords.CellVolume(k, j, i); } 
+        
+        else if (hst_quan == HstQuan::KinE) {
+          lsum += e_kin * coords.CellVolume(k, j, i); } 
+        
+        else if (hst_quan == HstQuan::MagE) {
+          lsum += e_mag * coords.CellVolume(k, j, i); } 
+        
+        else if (hst_quan == HstQuan::TotE) {
+          lsum += (e_kin + e_th + e_mag) * coords.CellVolume(k, j, i); } 
+        
+        else if (hst_quan == HstQuan::Ma) {
+          lsum += std::sqrt(e_kin / e_mag) * coords.CellVolume(k, j, i); } 
+        
+        else if (hst_quan == HstQuan::pb) {
+          lsum += pre / e_mag * coords.CellVolume(k, j, i); }     
+
       },
       sum);
+      // Kokkos::Sum<Real>(sum));
 
   return sum;
 }
@@ -110,6 +138,18 @@ void ProblemInitPackageData(ParameterInput *pin, parthenon::StateDescriptor *pkg
     hst_vars.emplace_back(parthenon::HistoryOutputVar(
         parthenon::UserHistoryOperation::sum, TurbulenceHst<HstQuan::pb>, "plasma_beta"));
   }
+  
+  hst_vars.emplace_back(parthenon::HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                                                    TurbulenceHst<HstQuan::ThermalP>, "ThermalP"));
+  hst_vars.emplace_back(parthenon::HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                                                    TurbulenceHst<HstQuan::ThermalE>, "ThermalE"));
+  hst_vars.emplace_back(parthenon::HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                                                    TurbulenceHst<HstQuan::KinE>, "KinE"));
+  hst_vars.emplace_back(parthenon::HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                                                    TurbulenceHst<HstQuan::MagE>, "MagE"));                                                                                                        
+  hst_vars.emplace_back(parthenon::HistoryOutputVar(parthenon::UserHistoryOperation::sum,
+                                                    TurbulenceHst<HstQuan::TotE>, "TotE"));
+
   pkg->UpdateParam(parthenon::hist_param_key, hst_vars);
 
   // Step 2. Add appropriate fields required by this pgen
@@ -252,9 +292,12 @@ void ProblemGenerator(Mesh *pmesh, ParameterInput *pin, MeshData<Real> *md) {
           jb.e + 1, ib.s - 1, ib.e + 1,
           KOKKOS_LAMBDA(const int b, const int k, const int j, const int i) {
             const auto &coords = cons.GetCoords(b);
+            const auto &u = cons(b);
 
             if ((SQR(coords.Xc<1>(i) - x0) + SQR(coords.Xc<2>(j) - y0)) < rad * rad) {
               a(b, 2, k, j, i) = (rad - std::sqrt(SQR(coords.Xc<1>(i) - x0) +
+                                                  SQR(coords.Xc<2>(j) - y0)));
+              u(IA3, k, j, i)  = (rad - std::sqrt(SQR(coords.Xc<1>(i) - x0) +
                                                   SQR(coords.Xc<2>(j) - y0)));
             }
           });
@@ -286,15 +329,27 @@ void ProblemGenerator(Mesh *pmesh, ParameterInput *pin, MeshData<Real> *md) {
             u(IA2, k, j, i) = b0 / std::sqrt(0.5) * (1.0 / kz) * std::cos(kz * coords.Xc<3>(k));
           }
 
-          u(IB1, k, j, i) +=
-              (a(b, 2, k, j + 1, i) - a(b, 2, k, j - 1, i)) / coords.Dxc<2>(j) / 2.0 -
-              (a(b, 1, k + 1, j, i) - a(b, 1, k - 1, j, i)) / coords.Dxc<3>(k) / 2.0;
-          u(IB2, k, j, i) =
-              (a(b, 0, k + 1, j, i) - a(b, 0, k - 1, j, i)) / coords.Dxc<3>(k) / 2.0 -
-              (a(b, 2, k, j, i + 1) - a(b, 2, k, j, i - 1)) / coords.Dxc<1>(i) / 2.0;
-          u(IB3, k, j, i) =
-              (a(b, 1, k, j, i + 1) - a(b, 1, k, j, i - 1)) / coords.Dxc<1>(i) / 2.0 -
-              (a(b, 0, k, j + 1, i) - a(b, 0, k, j - 1, i)) / coords.Dxc<2>(j) / 2.0;
+
+          u(IB1, k, j, i) += (1 / (12 * coords.Dxc<2>(j))) * (a(b,2,k,j-2,i) - 8.0 * a(b,2,k,j-1,i) + 8.0 * a(b,2,k,j+1,i) - a(b,2,k,j+2,i)) -
+                             (1 / (12 * coords.Dxc<3>(k))) * (a(b,1,k-2,j,i) - 8.0 * a(b,1,k-1,j,i) + 8.0 * a(b,1,k+1,j,i) - a(b,1,k+2,j,i));
+
+          u(IB2, k, j, i)  = (1 / (12 * coords.Dxc<3>(k))) * (a(b,0,k-2,j,i) - 8.0 * a(b,0,k-1,j,i) + 8.0 * a(b,0,k+1,j,i) - a(b,0,k+2,j,i)) -
+                             (1 / (12 * coords.Dxc<1>(i))) * (a(b,2,k,j,i-2) - 8.0 * a(b,2,k,j,i-1) + 8.0 * a(b,2,k,j,i+1) - a(b,2,k,j,i+2));
+          
+          u(IB3, k, j, i)  = (1 / (12 * coords.Dxc<1>(i))) * (a(b,1,k,j,i-2) - 8.0 * a(b,1,k,j,i-1) + 8.0 * a(b,1,k,j,i+1) - a(b,1,k,j,i+2)) -
+                             (1 / (12 * coords.Dxc<2>(j))) * (a(b,0,k,j-2,i) - 8.0 * a(b,0,k,j-1,i) + 8.0 * a(b,0,k,j+1,i) - a(b,0,k,j+2,i));
+
+          // u(IB1, k, j, i) +=
+          //     (a(b, 2, k, j + 1, i) - a(b, 2, k, j - 1, i)) / coords.Dxc<2>(j) / 2.0 -
+          //     (a(b, 1, k + 1, j, i) - a(b, 1, k - 1, j, i)) / coords.Dxc<3>(k) / 2.0;
+          // u(IB2, k, j, i) =
+          //     (a(b, 0, k + 1, j, i) - a(b, 0, k - 1, j, i)) / coords.Dxc<3>(k) / 2.0 -
+          //     (a(b, 2, k, j, i + 1) - a(b, 2, k, j, i - 1)) / coords.Dxc<1>(i) / 2.0;
+          // u(IB3, k, j, i) =
+          //     (a(b, 1, k, j, i + 1) - a(b, 1, k, j, i - 1)) / coords.Dxc<1>(i) / 2.0 -
+          //     (a(b, 0, k, j + 1, i) - a(b, 0, k, j - 1, i)) / coords.Dxc<2>(j) / 2.0;
+          
+
           lsum += 0.5 *
                   (SQR(u(IB1, k, j, i)) + SQR(u(IB2, k, j, i)) + SQR(u(IB3, k, j, i))) *
                   coords.CellVolume(k, j, i);
@@ -313,11 +368,35 @@ void ProblemGenerator(Mesh *pmesh, ParameterInput *pin, MeshData<Real> *md) {
     }
   }
 
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  // const int Nx = 512;
+  // const int Ny = 512;
+
+  // std::vector<Real> rho_host(Nx * Ny);
+
+  // std::ifstream infile("rho.txt");
+  // if (!infile.is_open()) {
+  //   PARTHENON_FAIL("Could not open rho.txt");
+  // }
+
+  // for (int j = 0; j < Ny; ++j) {
+  //   for (int i = 0; i < Nx; ++i) {
+  //     infile >> rho_host[j * Nx + i];
+  //   }
+  // }
+  // infile.close();
+
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
   pmb->par_for(
       "Final norm. and init", 0, num_blocks - 1, kb.s, kb.e, jb.s, jb.e, ib.s, ib.e,
       KOKKOS_LAMBDA(const int b, const int k, const int j, const int i) {
         const auto &u = cons(b);
+
         u(IDN, k, j, i) = rho0;
+        // u(IDN, k, j, i) = rho_host[(j - jb.s) * Nx + (i - ib.s)];
 
         u(IM1, k, j, i) = 0.0;
         u(IM2, k, j, i) = 0.0;
@@ -334,6 +413,8 @@ void ProblemGenerator(Mesh *pmesh, ParameterInput *pin, MeshData<Real> *md) {
               0.5 * (SQR(u(IB1, k, j, i)) + SQR(u(IB2, k, j, i)) + SQR(u(IB3, k, j, i)));
         }
       });
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 }
 
 //----------------------------------------------------------------------------------------
